@@ -14,13 +14,14 @@ class HistoryView : public BView {
 public:
     HistoryView();
     void SetTarget(BMessenger target) { fTarget = target; }
-    void SetCommits(std::vector<Commit> commits, bool append);
+    // append adds a page; keepPosition replaces the list without touching scroll or selection.
+    void SetCommits(std::vector<Commit> commits, bool append, bool keepPosition = false);
     void SetFilter(const std::string& filter);
     void SetCurrentHead(const std::string& hash) { fHead = hash; Invalidate(); }
     void SetLoading(bool loading, bool more);
     std::vector<std::string> SelectedHashes() const;
     const Commit* CommitFor(const std::string& hash) const;
-    void SelectHash(const std::string& hash);
+    void SelectHash(const std::string& hash, bool notify = true);
     size_t Count() const { return fCommits.size(); }
     void AttachedToWindow() override;
     void Draw(BRect updateRect) override;

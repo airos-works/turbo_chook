@@ -32,7 +32,7 @@ private:
     void ShowCard(Card card);
     // Data
     void Refresh();
-    void LoadHistory(bool reset);
+    void LoadHistory(bool reset, bool keepPosition = false);
     void LoadWorkingDiff(const std::string& path, bool staged, bool untracked, bool conflicted);
     void LoadCommit(const std::string& hash);
     void LoadCommitDiff(const std::string& hash, const std::string& from, const std::string& to, const std::string& path);
@@ -90,7 +90,7 @@ private:
     std::vector<FileStatus> fFiles;
     std::string fGitHubRepository;
     std::vector<std::string> fHistoryRevisions;
-    std::string fHistoryTitle;
+    std::string fHistoryTitle, fRefsSignature;
     size_t fHistoryLoaded = 0;
     bool fHistoryComplete = false, fHistoryLoading = false, fBusy = false, fRefreshing = false, fRefreshQueued = false;
     int64 fGeneration = 0, fDiffRequest = 0, fCommitRequest = 0, fPullRequestRequest = 0;

@@ -250,15 +250,25 @@ void RepositoryWindow::Refresh() {
             fPullButton->SetEnabled(current && !current->upstream.empty());
             fPullRequests->SetRepository(github, !App()->GitHubToken().empty());
             SetTitle((fTitleName + " (" + branch + ") - Turbo Chook").c_str());
-            // Reload the history when its refs may have moved.
-            if (fCard == kCardHistory || fHistoryLoaded == 0) LoadHistory(true);
+            // Reload the history only when a ref actually moved, keeping pages, selection and scroll position.
+            std::string refs = model.state.headHash + '\n';
+            for (const auto& b : model.branches) refs += b.fullRef + ' ' + b.hash + '\n';
+            for (const auto& t : model.tags) refs += t.name + ' ' + t.hash + '\n';
+            for (const auto& s : model.stashes) refs += s.ref + ' ' + s.hash + '\n';
+            bool refsChanged = refs != fRefsSignature;
+            fRefsSignature = refs;
+            if (fHistoryLoaded == 0 && !fHistoryLoading) LoadHistory(true);
+            else if (refsChanged) LoadHistory(true, true);
             if (fRefreshQueued) { fRefreshQueued = false; Refresh(); }
         };
     }, "refresh");
 }
 std::vector<std::string> RepositoryWindow::HistoryRevisions() const { return fHistoryRevisions; }
-void RepositoryWindow::LoadHistory(bool reset) {
+void RepositoryWindow::LoadHistory(bool reset, bool keepPosition) {
     if (fHistoryLoading && !reset) return;
+    const size_t page = 300;
+    // A refresh that keeps the position re-reads everything loaded so far in one request.
+    size_t count = reset && keepPosition ? std::max(page, fHistoryLoaded) : page;
     if (reset) { fHistoryLoaded = 0; fHistoryComplete = false; }
     fHistoryLoading = true;
     fHistory->History()->SetLoading(true, !fHistoryComplete);
@@ -266,21 +276,16 @@ void RepositoryWindow::LoadHistory(bool reset) {
     auto revisions = fHistoryRevisions;
     size_t skip = fHistoryLoaded;
     int64 generation = ++fGeneration;
-    const size_t page = 300;
-    fJobs->Submit([repo, revisions, skip, generation, page, this](const std::atomic<bool>& cancel) -> AsyncQueue::Callback {
-        auto log = repo->Log(revisions, skip, page, {}, &cancel);
+    fJobs->Submit([repo, revisions, skip, count, generation, keepPosition, this](const std::atomic<bool>& cancel) -> AsyncQueue::Callback {
+        auto log = repo->Log(revisions, skip, count, {}, &cancel);
         return [=] {
             fHistoryLoading = false;
             if (generation != fGeneration && skip == 0) return;
             if (!log.ok()) { fHistory->History()->SetLoading(false, false); SetStatus(log.error); return; }
-            fHistoryComplete = log.value.size() < page;
+            fHistoryComplete = log.value.size() < count;
             fHistoryLoaded += log.value.size();
-            std::string selected;
-            auto hashes = fHistory->History()->SelectedHashes();
-            if (hashes.size() == 1) selected = hashes.front();
-            fHistory->History()->SetCommits(log.value, skip > 0);
+            fHistory->History()->SetCommits(log.value, skip > 0, keepPosition);
             fHistory->History()->SetLoading(false, !fHistoryComplete);
-            if (!selected.empty() && skip == 0) fHistory->History()->SelectHash(selected);
         };
     }, "history");
 }

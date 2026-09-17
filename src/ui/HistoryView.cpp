@@ -32,9 +32,20 @@ void HistoryView::AttachedToWindow() {
     fRowHeight = std::ceil(fh.ascent + fh.descent + fh.leading) + 8;
     Relayout();
 }
-void HistoryView::SetCommits(std::vector<Commit> commits, bool append) {
+void HistoryView::SetCommits(std::vector<Commit> commits, bool append, bool keepPosition) {
     if (append) fCommits.insert(fCommits.end(), commits.begin(), commits.end());
-    else { fCommits = std::move(commits); fSelected.clear(); fAnchor = fLead = -1; ScrollTo(0, 0); }
+    else if (keepPosition) {
+        // Re-map the selection by hash so a refreshed list keeps what the user chose.
+        std::set<std::string> selected;
+        for (int index : fSelected) if (index >= 0 && index < static_cast<int>(fCommits.size())) selected.insert(fCommits[index].hash);
+        std::string lead = fLead >= 0 && fLead < static_cast<int>(fCommits.size()) ? fCommits[fLead].hash : "";
+        fCommits = std::move(commits);
+        fSelected.clear(); fAnchor = fLead = -1;
+        for (size_t i = 0; i < fCommits.size(); ++i) {
+            if (selected.count(fCommits[i].hash)) fSelected.insert(static_cast<int>(i));
+            if (fCommits[i].hash == lead) fAnchor = fLead = static_cast<int>(i);
+        }
+    } else { fCommits = std::move(commits); fSelected.clear(); fAnchor = fLead = -1; ScrollTo(0, 0); }
     fRows = LayoutGraph(fCommits);
     fMoreRequested = false;
     Relayout();
@@ -55,6 +66,7 @@ void HistoryView::Relayout() {
 void HistoryView::UpdateScrollBars() {
     float height = (fVisible.size() + (fMore || fLoading ? 1 : 0)) * fRowHeight;
     if (BScrollBar* bar = ScrollBar(B_VERTICAL)) {
+        // Keep the current position; only the range changes (BScrollBar clamps the value).
         bar->SetRange(0, std::max(0.0f, height - Bounds().Height()));
         bar->SetSteps(fRowHeight, Bounds().Height() - fRowHeight);
         bar->SetProportion(height > 0 ? std::min(1.0f, Bounds().Height() / height) : 1.0f);
@@ -75,11 +87,13 @@ const Commit* HistoryView::CommitFor(const std::string& hash) const {
     for (const auto& c : fCommits) if (c.hash == hash) return &c;
     return nullptr;
 }
-void HistoryView::SelectHash(const std::string& hash) {
+void HistoryView::SelectHash(const std::string& hash, bool notify) {
     for (size_t i = 0; i < fCommits.size(); ++i) if (fCommits[i].hash == hash) {
         fSelected.clear(); fSelected.insert(static_cast<int>(i)); fAnchor = fLead = static_cast<int>(i);
         for (size_t v = 0; v < fVisible.size(); ++v) if (fVisible[v] == static_cast<int>(i)) EnsureVisible(static_cast<int>(v));
-        Invalidate(); NotifySelection(); return;
+        Invalidate();
+        if (notify) NotifySelection();
+        return;
     }
 }
 void HistoryView::EnsureVisible(int row) {
