@@ -6,10 +6,10 @@ resource vector_icon {
 resource app_version {
     major = 0,
     middle = 1,
-    minor = 0,
+    minor = 1,
     variety = B_APPV_ALPHA,
     internal = 0,
-    short_info = "Turbo Chook 0.1.0 alpha — Git client",
+    short_info = "Turbo Chook 0.1.1 alpha — Git client",
     long_info = "A native Git client for Haiku with branches, history graph, diffs, stashes, pull requests and drag & drop workflows."
 };
 resource file_types message {

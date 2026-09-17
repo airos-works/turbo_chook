@@ -100,7 +100,7 @@ void Application::MessageReceived(BMessage* message) {
 }
 void Application::AboutRequested() {
     BAlert* about = new BAlert("About Turbo Chook",
-        "Turbo Chook 0.1.0 alpha\n\nA native Git client for Haiku: branches, history graph, diffs, stashes, "
+        "Turbo Chook 0.1.1 alpha\n\nA native Git client for Haiku: branches, history graph, diffs, stashes, "
         "pull requests, undo and drag & drop workflows.\n\nNamed after the Tasmanian nativehen, the turbo chook.\n\n"
         "\xc2\xa9 2026 Turbo Chook contributors. MIT license.", "OK", nullptr, nullptr, B_WIDTH_AS_USUAL, B_INFO_ALERT);
     about->Go(nullptr);
