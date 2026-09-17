@@ -23,18 +23,28 @@ void DiffView::AttachedToWindow() {
     Rebuild();
 }
 void DiffView::SetDiff(const std::string& unified, Mode mode, const std::string& title) {
+    // The same diff again (a refresh) keeps the scroll position and line selection.
+    bool same = unified == fUnified && mode == fMode && title == fTitle && !fFiles.empty();
+    fUnified = unified;
     fFiles = ParseUnifiedDiff(unified);
     fMode = mode; fTitle = title; fMessage.clear();
     if (fFiles.empty()) fMessage = unified.empty() ? "No changes." : "No textual changes to show.";
-    fSelectedRows.clear(); fSelectedHunk = -1; fSelectedFile = -1; fSelectionAnchor = -1;
+    if (!same) { fSelectedRows.clear(); fSelectedHunk = -1; fSelectedFile = -1; fSelectionAnchor = -1; }
     Rebuild();
-    ScrollTo(0, 0);
+    if (!same) ScrollTo(BPoint(0, 0));
+}
+void DiffView::ScrollTo(BPoint where) {
+    BPoint before = Bounds().LeftTop();
+    BView::ScrollTo(where);
+    // Horizontal scrolling moves the content but the gutter, headers and buttons stay put,
+    // so the copied pixels are wrong; repaint everything instead.
+    if (before.x != Bounds().left) Invalidate();
 }
 void DiffView::SetMessage(const std::string& message) {
-    fFiles.clear(); fMessage = message; fTitle.clear();
+    fFiles.clear(); fMessage = message; fTitle.clear(); fUnified.clear();
     fSelectedRows.clear(); fSelectedHunk = -1; fSelectedFile = -1;
     Rebuild();
-    ScrollTo(0, 0);
+    ScrollTo(BPoint(0, 0));
 }
 void DiffView::Rebuild() {
     fRows.clear();
@@ -158,16 +168,9 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
     if (selected) background = Mix(background, ui_color(B_LIST_SELECTED_BACKGROUND_COLOR), 0.55f);
     SetHighColor(background); FillRect(frame);
     SetFont(&fFont);
-    // Gutter with old/new numbers (fixed to the left edge).
-    BRect gutter(left, frame.top, left + fNumberWidth * 2 + 12, frame.bottom);
-    SetHighColor(Mix(background, ui_color(B_PANEL_BACKGROUND_COLOR), 0.35f)); FillRect(gutter);
-    SetHighColor(numbers);
-    if (line.oldNumber > 0) { std::string n = std::to_string(line.oldNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth - fFont.StringWidth(n.c_str()) - 4, baseline)); }
-    if (line.newNumber > 0) { std::string n = std::to_string(line.newNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth * 2 - fFont.StringWidth(n.c_str()) - 4, baseline)); }
-    SetHighColor(line.kind == '+' ? fPalette.addedText : line.kind == '-' ? fPalette.removedText : text);
-    std::string marker(1, line.kind == '\\' ? ' ' : line.kind);
-    DrawString(marker.c_str(), BPoint(gutter.right + 4, baseline));
-    // Expand tabs for a stable monospaced layout.
+    // The text lives in content coordinates so it scrolls; the gutter is painted
+    // over it afterwards at the visible left edge so the numbers stay put.
+    const float gutterWidth = fNumberWidth * 2 + 12;
     std::string content;
     content.reserve(line.text.size() + 8);
     size_t column = 0;
@@ -176,7 +179,15 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
         else { content += c; ++column; }
     }
     if (line.kind == '\\') content = "(no newline at end of file)";
-    DrawString(content.c_str(), BPoint(gutter.right + 4 + fCharWidth * 2, baseline));
+    SetHighColor(line.kind == '+' ? fPalette.addedText : line.kind == '-' ? fPalette.removedText : text);
+    std::string marker(1, line.kind == '\\' ? ' ' : line.kind);
+    DrawString(marker.c_str(), BPoint(gutterWidth + 4, baseline));
+    DrawString(content.c_str(), BPoint(gutterWidth + 4 + fCharWidth * 2, baseline));
+    BRect gutter(left, frame.top, left + gutterWidth, frame.bottom);
+    SetHighColor(Mix(background, ui_color(B_PANEL_BACKGROUND_COLOR), 0.35f)); FillRect(gutter);
+    SetHighColor(numbers);
+    if (line.oldNumber > 0) { std::string n = std::to_string(line.oldNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth - fFont.StringWidth(n.c_str()) - 4, baseline)); }
+    if (line.newNumber > 0) { std::string n = std::to_string(line.newNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth * 2 - fFont.StringWidth(n.c_str()) - 4, baseline)); }
 }
 std::vector<DiffView::Button> DiffView::ButtonsFor(int index) const {
     std::vector<Button> result;

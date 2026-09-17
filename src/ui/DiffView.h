@@ -24,6 +24,8 @@ public:
     void AttachedToWindow() override;
     void Draw(BRect updateRect) override;
     void FrameResized(float width, float height) override;
+    using BView::ScrollTo;
+    void ScrollTo(BPoint where) override;   // headers and gutters are pinned horizontally, so redraw fully
     void MouseDown(BPoint where) override;
     void MouseMoved(BPoint where, uint32 transit, const BMessage* drag) override;
     void KeyDown(const char* bytes, int32 count) override;
@@ -45,7 +47,7 @@ private:
     std::vector<Row> fRows;
     std::set<int> fSelectedRows;      // row indexes of selected diff lines (one hunk at a time)
     int fSelectionAnchor = -1, fSelectedHunk = -1, fSelectedFile = -1;
-    std::string fMessage, fTitle;
+    std::string fMessage, fTitle, fUnified;
     Mode fMode = kReadOnly;
     BMessenger fTarget;
     Palette fPalette;
