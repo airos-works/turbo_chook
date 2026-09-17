@@ -7,7 +7,7 @@ nativehen, the flightless bird locals call the turbo chook. It is written in
 C++17 against the Interface Kit and drives the system's `git` command, so the
 Git version it uses can be chosen from every installation on the machine.
 
-**0.1.1 alpha** builds and runs on Haiku R1/beta6 x86_64. The code has no
+**0.1.2 alpha** builds and runs on Haiku R1/beta6 x86_64. The code has no
 architecture-specific parts and is intended to build unchanged on the ARM64
 Haiku fork once its toolchain provides the Interface Kit.
 
@@ -76,7 +76,7 @@ Haiku fork once its toolchain provides the Interface Kit.
 On Haiku R1/beta6:
 
 ```sh
-pkgman install ./turbochook-0.1.1~alpha-1-x86_64.hpkg
+pkgman install ./turbochook-0.1.2~alpha-1-x86_64.hpkg
 /boot/system/apps/TurboChook /path/to/repository
 ```
 
@@ -89,7 +89,7 @@ From source:
 pkgman install gcc make git
 make -j4            # build-haiku/TurboChook
 make check-host     # portable core tests, also work on Linux with g++
-make package        # artifacts/turbochook-0.1.1~alpha-1-x86_64.hpkg
+make package        # artifacts/turbochook-0.1.2~alpha-1-x86_64.hpkg
 ```
 
 `make BUILD=build-host check-host` runs the same tests on a Linux host; they
