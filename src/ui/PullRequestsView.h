@@ -1,6 +1,7 @@
 #pragma once
 #include "core/GitHub.h"
 #include "ui/Widgets.h"
+#include "ui/MarkdownText.h"
 #include <ListView.h>
 #include <Messenger.h>
 #include <View.h>
@@ -36,6 +37,7 @@ private:
     BButton* fBrowser;
     BButton* fComment;
     std::vector<PullRequest> fRequests;
+    std::vector<MarkdownLink> fLinks;
     std::string fRepository;
     bool fHasToken = false;
 };

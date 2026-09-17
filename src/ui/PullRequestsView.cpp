@@ -1,5 +1,6 @@
 #include "ui/PullRequestsView.h"
 #include "ui/Messages.h"
+#include "ui/MarkdownText.h"
 #include <Button.h>
 #include <LayoutBuilder.h>
 #include <MenuField.h>
@@ -135,19 +136,26 @@ void PullRequestsView::SetPullRequests(std::vector<PullRequest> requests, const 
 }
 void PullRequestsView::SetDetails(const PullRequest& pr, const std::vector<PullRequestComment>& comments, const std::vector<PullRequestReview>& reviews) {
     fTitle->SetText(("#" + std::to_string(pr.number) + "  " + pr.title).c_str());
+    // The description, reviews and comments are GitHub Markdown; compose one document and render it.
     std::string text;
-    text += pr.statusLine() + "  by " + pr.author + "  " + pr.headRepository + ":" + pr.headRef + " \xe2\x86\x92 " + pr.baseRef + "\n";
+    text += "**" + pr.statusLine() + "** by **" + pr.author + "**  " + pr.headRepository + ":`" + pr.headRef + "` \xe2\x86\x92 `" + pr.baseRef + "`  \n";
     text += "Opened " + FormatDate(pr.createdAt) + ", updated " + FormatDate(pr.updatedAt);
-    if (pr.commits || pr.changedFiles) text += "  \xc2\xb7  " + std::to_string(pr.commits) + " commits, " + std::to_string(pr.changedFiles) + " files, +" + std::to_string(pr.additions) + " -" + std::to_string(pr.deletions);
-    if (!pr.mergeable.empty()) text += "  \xc2\xb7  " + pr.mergeable;
-    text += "\n\n" + (pr.body.empty() ? std::string("(no description)") : pr.body) + "\n";
-    for (const auto& review : reviews) text += "\n\xe2\x80\x94 " + review.author + " " + review.state + (review.body.empty() ? "" : ": " + review.body) + "  (" + FormatDate(review.submittedAt) + ")\n";
-    for (const auto& comment : comments) {
-        text += "\n\xe2\x80\x94 " + comment.author + "  " + FormatDate(comment.createdAt);
-        if (!comment.path.empty()) text += "  " + comment.path + (comment.line ? ":" + std::to_string(comment.line) : "");
-        text += "\n" + comment.body + "\n";
+    if (pr.commits || pr.changedFiles) text += " \xc2\xb7 " + std::to_string(pr.commits) + " commits, " + std::to_string(pr.changedFiles) + " files, +" + std::to_string(pr.additions) + " -" + std::to_string(pr.deletions);
+    if (!pr.mergeable.empty()) text += " \xc2\xb7 " + pr.mergeable;
+    text += "\n\n" + (pr.body.empty() ? std::string("*(no description)*") : pr.body) + "\n";
+    if (!reviews.empty() || !comments.empty()) text += "\n---\n";
+    for (const auto& review : reviews) {
+        text += "\n**" + review.author + "** " + review.state + " \xc2\xb7 " + FormatDate(review.submittedAt) + "\n\n";
+        if (!review.body.empty()) text += review.body + "\n";
     }
-    fDetails->SetText(text.c_str());
+    for (const auto& comment : comments) {
+        text += "\n**" + comment.author + "** \xc2\xb7 " + FormatDate(comment.createdAt);
+        if (!comment.path.empty()) text += " \xc2\xb7 `" + comment.path + (comment.line ? ":" + std::to_string(comment.line) : "") + "`";
+        text += "\n\n" + comment.body + "\n";
+    }
+    Palette palette = Palette::Current();
+    MarkdownStyle style{ui_color(B_DOCUMENT_TEXT_COLOR), ui_color(B_LINK_TEXT_COLOR), palette.addedText, palette.muted, palette.muted, be_plain_font->Size()};
+    fLinks = SetMarkdown(fDetails, text, style);
     UpdateButtons();
 }
 void PullRequestsView::UpdateButtons() {
@@ -168,7 +176,9 @@ void PullRequestsView::MessageReceived(BMessage* message) {
             const PullRequest* pr = Selected();
             if (!pr) break;
             fTitle->SetText(("#" + std::to_string(pr->number) + "  " + pr->title).c_str());
-            fDetails->SetText(("Loading details" B_UTF8_ELLIPSIS "\n\n" + pr->body).c_str());
+            Palette palette = Palette::Current();
+            MarkdownStyle style{ui_color(B_DOCUMENT_TEXT_COLOR), ui_color(B_LINK_TEXT_COLOR), palette.addedText, palette.muted, palette.muted, be_plain_font->Size()};
+            fLinks = SetMarkdown(fDetails, "*Loading details" B_UTF8_ELLIPSIS "*\n\n" + pr->body, style);
             BMessage forward(kPullRequestSelected); forward.AddInt32("number", pr->number);
             fWindow.SendMessage(&forward);
             break;

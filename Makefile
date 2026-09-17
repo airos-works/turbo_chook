@@ -2,6 +2,9 @@
 # `make check-host` builds and runs the portable core tests on Linux or Haiku.
 .DEFAULT_GOAL := all
 CXX ?= g++
+CC ?= gcc
+CFLAGS ?= -O2
+CFLAGS += -std=c99
 BUILD ?= build-haiku
 CPPFLAGS += -Isrc -Ivendor
 CXXFLAGS ?= -O2 -g
@@ -10,11 +13,13 @@ CORE = $(wildcard src/core/*.cpp)
 UI = $(wildcard src/ui/*.cpp) src/main.cpp
 CORE_OBJ = $(CORE:%.cpp=$(BUILD)/%.o)
 UI_OBJ = $(UI:%.cpp=$(BUILD)/%.o)
+VENDOR_C = vendor/md4c/md4c.c vendor/md4c/entity.c
+VENDOR_OBJ = $(VENDOR_C:%.c=$(BUILD)/%.o)
 LIBS = -lbe -ltracker -ltranslation
-.PHONY: all check check-host check-native package clean icon
+.PHONY: all check check-host check-native check-markdown package clean icon
 all: $(BUILD)/TurboChook
-$(BUILD)/TurboChook: $(CORE_OBJ) $(UI_OBJ) resources/TurboChook.rdef resources/branding/turbochook-icon.hvif
-	$(CXX) -o $@.new $(CORE_OBJ) $(UI_OBJ) $(LIBS)
+$(BUILD)/TurboChook: $(CORE_OBJ) $(UI_OBJ) $(VENDOR_OBJ) resources/TurboChook.rdef resources/branding/turbochook-icon.hvif
+	$(CXX) -o $@.new $(CORE_OBJ) $(UI_OBJ) $(VENDOR_OBJ) $(LIBS)
 	rc -o $(BUILD)/TurboChook.rsrc resources/TurboChook.rdef
 	xres -o $@.new $(BUILD)/TurboChook.rsrc
 	mimeset -f $@.new
@@ -22,19 +27,26 @@ $(BUILD)/TurboChook: $(CORE_OBJ) $(UI_OBJ) resources/TurboChook.rdef resources/b
 $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 $(BUILD)/turbochook_core_tests: $(CORE_OBJ) $(BUILD)/tests/CoreTests.o
 	$(CXX) -o $@ $^ -lpthread
 check-host: $(BUILD)/turbochook_core_tests
 	$(BUILD)/turbochook_core_tests
 check: check-host
-$(BUILD)/turbochook_native_tests: $(CORE_OBJ) $(filter-out $(BUILD)/src/main.o,$(UI_OBJ)) $(BUILD)/tests/NativeTests.o
+$(BUILD)/turbochook_native_tests: $(CORE_OBJ) $(filter-out $(BUILD)/src/main.o,$(UI_OBJ)) $(VENDOR_OBJ) $(BUILD)/tests/NativeTests.o
 	$(CXX) -o $@ $^ $(LIBS)
 check-native: $(BUILD)/turbochook_native_tests
 	$(BUILD)/turbochook_native_tests
+$(BUILD)/turbochook_markdown_tests: $(CORE_OBJ) $(filter-out $(BUILD)/src/main.o,$(UI_OBJ)) $(VENDOR_OBJ) $(BUILD)/tests/MarkdownTests.o
+	$(CXX) -o $@ $^ $(LIBS)
+check-markdown: $(BUILD)/turbochook_markdown_tests
+	$(BUILD)/turbochook_markdown_tests
 icon:
 	python3 tools/make-icon.py resources/branding/turbochook-icon.hvif resources/branding/turbochook-icon-preview-host.png
 package: all
 	bash tools/package-haiku.sh
 clean:
 	rm -rf $(BUILD)
--include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d $(BUILD)/tests/NativeTests.d
+-include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(VENDOR_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d $(BUILD)/tests/NativeTests.d $(BUILD)/tests/MarkdownTests.d
