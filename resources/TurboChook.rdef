@@ -1,0 +1,17 @@
+resource app_signature "application/x-vnd.TurboChook";
+resource app_flags B_SINGLE_LAUNCH;
+resource vector_icon {
+    import "branding/turbochook-icon.hvif"
+};
+resource app_version {
+    major = 0,
+    middle = 1,
+    minor = 0,
+    variety = B_APPV_ALPHA,
+    internal = 0,
+    short_info = "Turbo Chook 0.1.0 alpha — Git client",
+    long_info = "A native Git client for Haiku with branches, history graph, diffs, stashes, pull requests and drag & drop workflows."
+};
+resource file_types message {
+    "types" = "application/x-vnd.Be-directory"
+};

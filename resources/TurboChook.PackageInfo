@@ -1,0 +1,22 @@
+name turbochook
+version 0.1.0~alpha-1
+architecture x86_64
+summary "Native Git client with branches, history graph, diffs and pull requests"
+description "Turbo Chook is a native Git client for Haiku inspired by Tower. It shows the working copy with hunk and line staging, a graphical history of all branches, per-commit diffs, branches, remotes, tags, stashes and submodules, GitHub pull requests, drag & drop for merge, rebase, push, cherry-pick and stash operations, undo for destructive operations, and lets you choose which installed Git version runs underneath."
+packager "Turbo Chook contributors"
+vendor "Turbo Chook"
+urls { "https://github.com/jmgasper/turbochook" }
+copyrights { "2026 Turbo Chook contributors" "2013-2025 Niels Lohmann" }
+licenses { "MIT" }
+provides {
+    turbochook = 0.1.0~alpha
+    app:TurboChook = 0.1.0~alpha
+}
+requires {
+    haiku >= r1~beta6
+    cmd:git
+    cmd:curl
+}
+post-install-scripts {
+    "boot/post-install/turbochook.sh"
+}

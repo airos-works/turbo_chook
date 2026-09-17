@@ -1,0 +1,10 @@
+.cache/
+.vm/
+build*/
+*.hpkg
+*.zip
+*.o
+*.a
+*.so
+__pycache__/
+artifacts/
