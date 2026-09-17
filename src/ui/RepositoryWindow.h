@@ -36,7 +36,7 @@ private:
     void LoadWorkingDiff(const std::string& path, bool staged, bool untracked, bool conflicted);
     void LoadCommit(const std::string& hash);
     void LoadCommitDiff(const std::string& hash, const std::string& from, const std::string& to, const std::string& path);
-    void LoadPullRequests();
+    void LoadPullRequests(bool force = false);
     void LoadPullRequest(int number);
     std::vector<std::string> HistoryRevisions() const;
     // Operations
@@ -98,5 +98,7 @@ private:
     Card fCard = kCardWorkingCopy;
     SidebarEntry fSelectedEntry;
     std::vector<PullRequest> fPullRequestList;
+    bigtime_t fPullRequestsLoadedAt = 0;
+    std::string fPullRequestsLoadedState;
 };
 }

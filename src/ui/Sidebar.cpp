@@ -99,7 +99,21 @@ void Sidebar::AddSection(const char* label, SidebarEntry::Kind kind, std::vector
     for (auto it = children.rbegin(); it != children.rend(); ++it) AddUnder(new SidebarItem(*it, 1), section);
     (void)kind;
 }
+std::string SidebarModel::Signature() const {
+    std::string s = state.head + '|' + state.headHash + '|' + std::to_string(state.inProgress()) + '|' + std::to_string(changes) + '|'
+        + std::to_string(hasGitHub) + '|' + std::to_string(pullRequests) + '\n';
+    for (const auto& b : branches) s += b.fullRef + ' ' + b.hash + ' ' + b.upstream + ' ' + std::to_string(b.ahead) + ' ' + std::to_string(b.behind) + ' ' + std::to_string(b.current) + std::to_string(b.gone) + '\n';
+    for (const auto& t : tags) s += "tag " + t.name + ' ' + t.hash + '\n';
+    for (const auto& st : stashes) s += "stash " + st.ref + ' ' + st.hash + ' ' + st.message + '\n';
+    for (const auto& r : remotes) s += "remote " + r.name + ' ' + r.fetchURL + '\n';
+    for (const auto& m : submodules) s += "module " + m.path + ' ' + m.hash + '\n';
+    return s;
+}
 void Sidebar::SetModel(const SidebarModel& model) {
+    // A periodic refresh with nothing new must not rebuild (and re-select) anything.
+    std::string signature = model.Signature();
+    if (signature == fSignature && FullListCountItems() > 0) return;
+    fSignature = signature;
     // Remember selection and collapsed sections across rebuilds.
     SidebarEntry previous; bool hadSelection = false;
     if (const SidebarEntry* selected = Selected()) { previous = *selected; hadSelection = true; }
@@ -107,6 +121,7 @@ void Sidebar::SetModel(const SidebarModel& model) {
     for (int32 i = 0; i < FullListCountItems(); ++i) {
         auto item = static_cast<SidebarItem*>(FullListItemAt(i));
         if (item->Entry().kind == SidebarEntry::kSection && !item->IsExpanded()) fCollapsed.push_back(item->Entry().label);
+        if (item->Entry().kind == SidebarEntry::kRemote && !item->IsExpanded()) fCollapsed.push_back("remote:" + item->Entry().name);
     }
     while (FullListCountItems() > 0) delete RemoveItem(static_cast<int32>(0));
     std::vector<SidebarEntry> top;

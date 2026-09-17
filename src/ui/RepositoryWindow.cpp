@@ -328,10 +328,13 @@ void RepositoryWindow::LoadCommitDiff(const std::string& hash, const std::string
         };
     }, "diff");
 }
-void RepositoryWindow::LoadPullRequests() {
+void RepositoryWindow::LoadPullRequests(bool force) {
     if (fGitHubRepository.empty()) { fPullRequests->SetPullRequests({}, "This repository has no GitHub remote, so there are no pull requests to show."); return; }
-    auto client = std::shared_ptr<GitHubClient>(GitHub().release());
     std::string state = fPullRequests->State();
+    // GitHub allows 60 unauthenticated requests an hour: never reload the same list within a minute unless asked.
+    if (!force && state == fPullRequestsLoadedState && system_time() - fPullRequestsLoadedAt < 60 * 1000000LL) return;
+    fPullRequestsLoadedAt = system_time(); fPullRequestsLoadedState = state;
+    auto client = std::shared_ptr<GitHubClient>(GitHub().release());
     int64 request = ++fPullRequestRequest;
     fPullRequests->SetStatus("Loading pull requests" B_UTF8_ELLIPSIS);
     fNetwork->Submit([client, state, request, this](const std::atomic<bool>& cancel) -> AsyncQueue::Callback {
@@ -412,7 +415,7 @@ std::string RepositoryWindow::BranchAt(const std::string& hash) const {
 void RepositoryWindow::MessageReceived(BMessage* message) {
     switch (message->what) {
         case kWorkDone: fJobs->Drain(); fOps->Drain(); fNetwork->Drain(); break;
-        case kRefresh: Refresh(); if (fCard == kCardPullRequests) LoadPullRequests(); break;
+        case kRefresh: Refresh(); if (fCard == kCardPullRequests) LoadPullRequests(true); break;
         case kRefreshTick: if (IsActive() && !fBusy) Refresh(); break;
         case kPreferencesChanged: fRepo->SetOptions(Options()); Refresh(); break;
         case kQuitApp: be_app->PostMessage(B_QUIT_REQUESTED); break;
@@ -436,6 +439,8 @@ void RepositoryWindow::MessageReceived(BMessage* message) {
         case kSidebarSelection: {
             const SidebarEntry* entry = fSidebar->Selected();
             if (!entry) break;
+            // A rebuilt sidebar re-selects the same entry; that echo must not reload anything.
+            if (entry->kind == fSelectedEntry.kind && entry->name == fSelectedEntry.name && entry->kind != SidebarEntry::kSubmodule) break;
             fSelectedEntry = *entry;
             switch (entry->kind) {
                 case SidebarEntry::kWorkingCopy: ShowCard(kCardWorkingCopy); break;

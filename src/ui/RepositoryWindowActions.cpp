@@ -590,7 +590,7 @@ void RepositoryWindow::HandlePullRequests(BMessage* message) {
     std::string originName = "origin";
     for (const auto& r : fModel.remotes) if (GitHubRepository(r.fetchURL).value_or("") == fGitHubRepository) { originName = r.name; break; }
     switch (message->what) {
-        case kPullRequestsRefresh: LoadPullRequests(); break;
+        case kPullRequestsRefresh: LoadPullRequests(true); break;
         case kPullRequestSelected: if (number > 0) LoadPullRequest(number); break;
         case kPullRequestOpenBrowser: if (pr) OpenExternally(pr->url); break;
         case kPullRequestCheckout: {

@@ -35,6 +35,8 @@ struct SidebarModel {
     int changes = 0;
     bool hasGitHub = false;
     int pullRequests = -1;
+    // Everything that affects what the sidebar shows; unchanged models skip the rebuild.
+    std::string Signature() const;
 };
 // Outline list with sections, drag sources (branches, tags, stashes) and drop
 // targets. Drops post kSidebarDrop to the target with the dragged payload and
@@ -58,6 +60,7 @@ private:
     void AddSection(const char* label, SidebarEntry::Kind kind, std::vector<SidebarEntry> children, bool keepEmpty = true);
     SidebarItem* Section(const std::string& label) const;
     std::vector<std::string> fCollapsed;
+    std::string fSignature;
     BMessenger fTarget;
     int32 fDropIndex = -1;
     Palette fPalette;
