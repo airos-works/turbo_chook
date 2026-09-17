@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-class BCardLayout; class BMenuBar; class BMenuItem; class BStringView; class BButton; class BMenu;
+class BCardLayout; class BSplitView; class BMenuBar; class BMenuItem; class BStringView; class BButton; class BMenu;
 namespace tc {
 class WorkingCopyView; class HistoryPanel; class PullRequestsView;
 // One repository. Owns the Git client, the background queues, the undo
@@ -73,6 +73,7 @@ private:
     UndoStack fUndo;
     // Views
     Sidebar* fSidebar;
+    BSplitView* fSplit = nullptr;
     BCardLayout* fCards;
     WorkingCopyView* fWorkingCopy;
     HistoryPanel* fHistory;

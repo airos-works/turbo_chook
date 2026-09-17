@@ -121,8 +121,10 @@ WorkingCopyView::WorkingCopyView(BMessenger window) : BView("workingCopy", B_WIL
     fStaged = new FileListView("staged", true, BMessenger(this));
     fUnstagedTitle = new BStringView("unstagedTitle", "Unstaged changes");
     fUnstagedTitle->SetFont(be_bold_font);
+    fUnstagedTitle->SetExplicitMinSize(BSize(130, B_SIZE_UNSET));
     fStagedTitle = new BStringView("stagedTitle", "Staged changes");
     fStagedTitle->SetFont(be_bold_font);
+    fStagedTitle->SetExplicitMinSize(BSize(130, B_SIZE_UNSET));
     fStageAll = new BButton("stageAll", "Stage All", new BMessage(kStageAll));
     fUnstageAll = new BButton("unstageAll", "Unstage All", new BMessage(kUnstageAll));
     fDiscardAll = new BButton("discardAll", "Discard All" B_UTF8_ELLIPSIS, new BMessage(kDiscardAll));
@@ -135,6 +137,7 @@ WorkingCopyView::WorkingCopyView(BMessenger window) : BView("workingCopy", B_WIL
     fCommit = new BButton("commit", "Commit", new BMessage(kCommit));
     fStateLabel = new BStringView("stateLabel", "");
     fStateLabel->SetFont(be_bold_font);
+    fStateLabel->SetTruncation(B_TRUNCATE_END); fStateLabel->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fStateBar = new BView("stateBar", B_WILL_DRAW);
     fStateBar->SetViewColor(Palette::Current().conflict);
     BLayoutBuilder::Group<>(fStateBar, B_HORIZONTAL, B_USE_SMALL_SPACING).SetInsets(B_USE_SMALL_INSETS)
@@ -146,6 +149,7 @@ WorkingCopyView::WorkingCopyView(BMessenger window) : BView("workingCopy", B_WIL
     fConflictBar = new BView("conflictBar", B_WILL_DRAW);
     fConflictBar->SetViewColor(Palette::Current().conflict);
     fConflictLabel = new BStringView("conflictLabel", "");
+    fConflictLabel->SetTruncation(B_TRUNCATE_END); fConflictLabel->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     BLayoutBuilder::Group<>(fConflictBar, B_HORIZONTAL, B_USE_SMALL_SPACING).SetInsets(B_USE_SMALL_INSETS)
         .Add(fConflictLabel).AddGlue()
         .Add(new BButton("ours", "Use Ours", new BMessage(kResolveOurs)))
@@ -275,6 +279,7 @@ void WorkingCopyView::MessageReceived(BMessage* message) {
             if (list->CurrentSelection() >= 0 && other->CurrentSelection() >= 0) { fSuppressSelection = true; other->DeselectAll(); fSuppressSelection = false; }
             auto files = list->SelectedFiles();
             if (files.empty()) break;
+            if (files.back().path == fShownPath && list->StagedSide() == fShownStaged && !fShownPath.empty() && message->HasBool("refresh")) break;
             BMessage request(kDiffSelection);
             request.AddString("path", files.back().path.c_str());
             request.AddBool("staged", list->StagedSide());

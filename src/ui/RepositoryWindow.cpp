@@ -16,6 +16,7 @@
 #include <MenuItem.h>
 #include <ScrollView.h>
 #include <SeparatorView.h>
+#include <SplitView.h>
 #include <StringView.h>
 #include <algorithm>
 
@@ -35,6 +36,7 @@ RepositoryWindow::RepositoryWindow(std::string root)
     fHistory = new HistoryPanel(BMessenger(this));
     fPullRequests = new PullRequestsView(BMessenger(this));
     fStatus = new BStringView("status", "Loading" B_UTF8_ELLIPSIS);
+    fStatus->SetTruncation(B_TRUNCATE_END); fStatus->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fBranchLabel = new BStringView("branch", "");
     fBranchLabel->SetFont(be_bold_font);
     BuildMenu();
@@ -50,14 +52,24 @@ RepositoryWindow::RepositoryWindow(std::string root)
         .Add(fMenuBar)
         .Add(toolbar)
         .Add(new BSeparatorView(B_HORIZONTAL))
-        .AddSplit(B_HORIZONTAL, 0.0f)
-            .Add(sidebarScroll, 0.2f)
-            .Add(cardHost, 0.8f)
+        .AddSplit(fSplit = new BSplitView(B_HORIZONTAL, 0.0f))
+            .Add(sidebarScroll, 0.22f)
+            .Add(cardHost, 0.78f)
         .End()
         .Add(new BSeparatorView(B_HORIZONTAL))
         .AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING).SetInsets(B_USE_SMALL_INSETS, 2, B_USE_SMALL_INSETS, 2).Add(fBranchLabel).Add(fStatus).AddGlue().End()
     .End();
-    fSidebar->SetExplicitMinSize(BSize(180, 100));
+    // Explicit limits keep the splitter movable: without them the cards' natural
+    // minimum width (long labels, many buttons) pins the sidebar to the extremes.
+    sidebarScroll->SetExplicitMinSize(BSize(160, 100));
+    sidebarScroll->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNLIMITED));
+    cardHost->SetExplicitMinSize(BSize(320, 200));
+    for (BView* card : {static_cast<BView*>(fWorkingCopy), static_cast<BView*>(fHistory), static_cast<BView*>(fPullRequests)})
+        card->SetExplicitMinSize(BSize(320, 200));
+    for (BView* card : {static_cast<BView*>(fWorkingCopy), static_cast<BView*>(fHistory), static_cast<BView*>(fPullRequests)}) UnlimitLabels(card);
+    UnlimitLabels(toolbar);
+    fSplit->SetCollapsible(false);
+    fSplit->SetSplitterSize(7);   // an easy grip between the sidebar and the cards
     fCards->SetVisibleItem(static_cast<int32>(kCardWorkingCopy));
     {
         BAutolock lock(App()->SettingsLock());
@@ -67,6 +79,9 @@ RepositoryWindow::RepositoryWindow(std::string root)
             frame.Set(s.GetInt("windowLeft"), s.GetInt("windowTop"), s.GetInt("windowLeft") + s.GetInt("windowWidth"), s.GetInt("windowTop") + s.GetInt("windowHeight"));
             MoveTo(frame.LeftTop()); ResizeTo(frame.Width(), frame.Height());
         }
+        int sidebar = s.GetInt("sidebarWidth", 260);
+        float total = Frame().Width();
+        if (sidebar >= 160 && sidebar < total - 320) { fSplit->SetItemWeight(0, sidebar / total, false); fSplit->SetItemWeight(1, (total - sidebar) / total, true); }
     }
     fRunner.reset(new BMessageRunner(BMessenger(this), new BMessage(kRefreshTick), 4000000));
     Refresh();
@@ -190,6 +205,7 @@ bool RepositoryWindow::QuitRequested() {
         Settings& s = App()->Preferences();
         s.SetInt("windowLeft", static_cast<int>(Frame().left)); s.SetInt("windowTop", static_cast<int>(Frame().top));
         s.SetInt("windowWidth", static_cast<int>(Frame().Width())); s.SetInt("windowHeight", static_cast<int>(Frame().Height()));
+        if (fSidebar->Parent()) s.SetInt("sidebarWidth", static_cast<int>(fSidebar->Parent()->Bounds().Width()));
         s.Save();
     }
     fRunner.reset();

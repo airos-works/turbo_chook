@@ -65,6 +65,11 @@ PullRequestsView::PullRequestsView(BMessenger window) : BView("pullRequests", B_
     fTitle = new BStringView("prTitle", "Select a pull request");
     fTitle->SetFont(be_bold_font);
     fStatus = new BStringView("prStatus", "");
+    fStatus->SetTruncation(B_TRUNCATE_END);
+    fStatus->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
+    fStatus->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNSET));
+    fTitle->SetTruncation(B_TRUNCATE_END);
+    fTitle->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fStateMenu = new BPopUpMenu("state");
     for (const char* state : {"Open", "Closed", "All"}) { BMessage* m = new BMessage(kPullRequestState); m->AddString("state", state); fStateMenu->AddItem(new BMenuItem(state, m)); }
     fStateMenu->ItemAt(0)->SetMarked(true);

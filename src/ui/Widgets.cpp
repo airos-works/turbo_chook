@@ -79,6 +79,15 @@ bool Confirm(const char* title, const std::string& text, const char* action, boo
     alert->SetShortcut(0, B_ESCAPE);
     return alert->Go() == 1;
 }
+void UnlimitLabels(BView* view) {
+    if (!view) return;
+    if (auto label = dynamic_cast<BStringView*>(view)) {
+        label->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNSET));
+        if (label->ExplicitMinSize().width < 0) label->SetExplicitMinSize(BSize(0, B_SIZE_UNSET));
+        label->SetTruncation(B_TRUNCATE_END);
+    }
+    for (int32 i = 0; i < view->CountChildren(); ++i) UnlimitLabels(view->ChildAt(i));
+}
 void OpenExternally(const std::string& target) {
     ProcessOptions options; options.timeout = std::chrono::milliseconds(10000);
     RunProcess({"open", target}, options);

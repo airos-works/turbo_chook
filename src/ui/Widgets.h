@@ -25,6 +25,9 @@ std::string Elide(const std::string& text, size_t max);
 void ShowError(const char* title, const std::string& text);
 bool Confirm(const char* title, const std::string& text, const char* action, bool destructive = true);
 void OpenExternally(const std::string& target);   // URL or path through Haiku's "open"
+// BStringViews cap a vertical group's maximum width at their text width, which in
+// turn makes BSplitView refuse to drag. Lift that limit for every label in a tree.
+void UnlimitLabels(BView* view);
 
 // A small window that asks for one or two text values and posts kPromptDone
 // with "text"/"text2" and the original template's fields to the target.

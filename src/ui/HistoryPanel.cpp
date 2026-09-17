@@ -28,6 +28,7 @@ HistoryPanel::HistoryPanel(BMessenger window) : BView("historyPanel", B_WILL_DRA
     SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
     fTitle = new BStringView("historyTitle", "History");
     fTitle->SetFont(be_bold_font);
+    fTitle->SetTruncation(B_TRUNCATE_END); fTitle->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fSearch = new BTextControl("search", "Search:", "", new BMessage(kSearchHistory));
     fSearch->SetModificationMessage(new BMessage(kSearchHistory));
     fHistory = new HistoryView();
