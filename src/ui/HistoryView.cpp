@@ -1,5 +1,6 @@
 #include "ui/HistoryView.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include <Bitmap.h>
 #include <ScrollBar.h>
 #include <Window.h>
@@ -27,8 +28,11 @@ HistoryView::HistoryView()
 }
 void HistoryView::AttachedToWindow() {
     BView::AttachedToWindow();
+    Restyle();
+}
+void HistoryView::Restyle() {
     fPalette = Palette::Current();
-    font_height fh; be_plain_font->GetHeight(&fh);
+    font_height fh; PlainFont().GetHeight(&fh);
     fRowHeight = std::ceil(fh.ascent + fh.descent + fh.leading) + 8;
     Relayout();
 }
@@ -105,12 +109,12 @@ void HistoryView::EnsureVisible(int row) {
     else if (bottom > bar->Value() + Bounds().Height()) bar->SetValue(std::min(max, bottom - Bounds().Height()));
 }
 void HistoryView::Draw(BRect updateRect) {
-    rgb_color base = ui_color(B_LIST_BACKGROUND_COLOR);
-    rgb_color text = ui_color(B_LIST_ITEM_TEXT_COLOR);
+    rgb_color base = Palette::Current().background;
+    rgb_color text = Palette::Current().text;
     SetHighColor(base); FillRect(updateRect);
-    font_height fh; be_plain_font->GetHeight(&fh);
+    font_height fh; PlainFont().GetHeight(&fh);
     if (fVisible.empty() && !fLoading) {
-        SetFont(be_plain_font); SetHighColor(fPalette.muted);
+        SetFont(&PlainFont()); SetHighColor(fPalette.muted);
         DrawString(fCommits.empty() ? "No commits yet." : "No commits match the search.", BPoint(16, 24 + fh.ascent));
         return;
     }
@@ -120,7 +124,7 @@ void HistoryView::Draw(BRect updateRect) {
     for (int row = first; row <= last; ++row) {
         BRect frame(0, row * fRowHeight, width, (row + 1) * fRowHeight - 1);
         if (row == static_cast<int>(fVisible.size())) {
-            SetFont(be_plain_font); SetHighColor(fPalette.muted);
+            SetFont(&PlainFont()); SetHighColor(fPalette.muted);
             DrawString(fLoading ? "Loading" B_UTF8_ELLIPSIS : "Scroll to load older commits", BPoint(fGraphWidth + 8, frame.top + 4 + fh.ascent));
             if (fMore && !fLoading && !fMoreRequested) { fMoreRequested = true; fTarget.SendMessage(kHistoryMore); }
             continue;
@@ -128,12 +132,12 @@ void HistoryView::Draw(BRect updateRect) {
         int index = fVisible[row];
         const Commit& commit = fCommits[index];
         bool selected = fSelected.count(index) > 0;
-        rgb_color rowColor = selected ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : (row % 2 ? Mix(base, ui_color(B_PANEL_BACKGROUND_COLOR), 0.18f) : base);
+        rgb_color rowColor = selected ? Palette::Current().selection : (row % 2 ? Mix(base, Palette::Current().panel, 0.18f) : base);
         SetHighColor(rowColor); FillRect(frame);
         if (fFilter.empty() && index < static_cast<int>(fRows.size())) DrawGraph(fRows[index], BRect(0, frame.top, fGraphWidth, frame.bottom), selected);
         float baseline = frame.top + (fRowHeight - (fh.ascent + fh.descent)) / 2 + fh.ascent;
         float x = fGraphWidth + 6;
-        rgb_color textColor = selected ? ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR) : text;
+        rgb_color textColor = selected ? Palette::Current().selectionText : text;
         // Ref badges: branches, remote branches, tags, HEAD.
         for (const auto& ref : commit.refs) {
             std::string label = ref; rgb_color fill = fPalette.badge;
@@ -146,7 +150,7 @@ void HistoryView::Draw(BRect updateRect) {
             DrawBadge(Elide(label, 28), fill, x, baseline, frame.top + 3, frame.bottom - 3);
             if (x > width - kAuthorWidth - kDateWidth - 60) break;
         }
-        SetFont(commit.hash == fHead ? be_bold_font : be_plain_font);
+        SetFont(commit.hash == fHead ? &BoldFont() : &PlainFont());
         SetHighColor(textColor);
         float subjectRight = width - kAuthorWidth - kDateWidth - 12;
         std::string subject = commit.subject;
@@ -154,26 +158,26 @@ void HistoryView::Draw(BRect updateRect) {
         BString truncated(subject.c_str());
         font.TruncateString(&truncated, B_TRUNCATE_END, std::max(20.0f, subjectRight - x));
         DrawString(truncated.String(), BPoint(x, baseline));
-        SetFont(be_plain_font);
+        SetFont(&PlainFont());
         SetHighColor(selected ? textColor : Mix(textColor, rowColor, 0.3f));
         BString author(commit.authorName.c_str());
-        be_plain_font->TruncateString(&author, B_TRUNCATE_END, kAuthorWidth - 8);
+        PlainFont().TruncateString(&author, B_TRUNCATE_END, kAuthorWidth - 8);
         DrawString(author.String(), BPoint(width - kAuthorWidth - kDateWidth, baseline));
         std::string date = FormatDate(commit.authorDate, true);
         DrawString(date.c_str(), BPoint(width - kDateWidth, baseline));
     }
 }
 void HistoryView::DrawBadge(const std::string& label, rgb_color fill, float& x, float baseline, float top, float bottom) {
-    BFont small(be_plain_font); small.SetSize(std::max(8.0f, be_plain_font->Size() * 0.85f));
+    BFont small(&PlainFont()); small.SetSize(std::max(8.0f, PlainFont().Size() * 0.85f));
     SetFont(&small);
     float w = small.StringWidth(label.c_str()) + 10;
     BRect badge(x, top, x + w, bottom);
     SetHighColor(fill); FillRoundRect(badge, 4, 4);
-    SetHighColor(Mix(fill, ui_color(B_LIST_ITEM_TEXT_COLOR), 0.45f)); StrokeRoundRect(badge, 4, 4);
+    SetHighColor(Mix(fill, Palette::Current().text, 0.45f)); StrokeRoundRect(badge, 4, 4);
     SetHighColor(DarkUI() ? rgb_color{240, 240, 240, 255} : rgb_color{30, 30, 30, 255});
     DrawString(label.c_str(), BPoint(x + 5, baseline - 1));
     x += w + 5;
-    SetFont(be_plain_font);
+    SetFont(&PlainFont());
 }
 void HistoryView::DrawGraph(const GraphRow& row, BRect cell, bool selected) {
     // Railway drawing: lanes are vertical rails; a lane that changes position
@@ -214,7 +218,7 @@ void HistoryView::DrawGraph(const GraphRow& row, BRect cell, bool selected) {
     float nodeX = laneX(row.lane);
     BRect node(nodeX - kNodeRadius, centerY - kNodeRadius, nodeX + kNodeRadius, centerY + kNodeRadius);
     rgb_color fill = LaneColor(row.color);
-    rgb_color ring = selected ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR);
+    rgb_color ring = selected ? Palette::Current().selection : Palette::Current().background;
     SetHighColor(ring); FillEllipse(node.InsetByCopy(-1.5f, -1.5f));
     SetHighColor(fill); FillEllipse(node);
     if (row.merge) { SetHighColor(ring); FillEllipse(node.InsetByCopy(2, 2)); }
@@ -277,8 +281,8 @@ void HistoryView::StartDrag(BPoint where) {
     const Commit* commit = CommitFor(hashes.front());
     std::string label = hashes.size() == 1 ? (commit ? commit->shortHash() + "  " + Elide(commit->subject, 40) : hashes.front().substr(0, 8)) : std::to_string(hashes.size()) + " commits";
     drag.AddString("label", label.c_str());
-    font_height fh; be_plain_font->GetHeight(&fh);
-    float w = be_plain_font->StringWidth(label.c_str()) + 20, h = fh.ascent + fh.descent + 10;
+    font_height fh; PlainFont().GetHeight(&fh);
+    float w = PlainFont().StringWidth(label.c_str()) + 20, h = fh.ascent + fh.descent + 10;
     BBitmap* bitmap = new BBitmap(BRect(0, 0, w, h), B_RGBA32, true);
     BView* painter = new BView(bitmap->Bounds(), "drag", B_FOLLOW_NONE, 0);
     bitmap->AddChild(painter);

@@ -14,6 +14,7 @@ public:
 private:
     void PopulateGit(const std::string& selected);
     void Apply();
+    void UpdatePreview();
     BPopUpMenu* fGitMenu;
     BMenuField* fGitField;
     BStringView* fGitInfo;
@@ -25,6 +26,12 @@ private:
     BCheckBox* fPullRebase;
     BCheckBox* fShowAll;
     BTextControl* fContext;
+    BPopUpMenu* fFontMenu;
+    BMenuField* fFontField;
+    BTextControl* fFontSize;
+    BPopUpMenu* fThemeMenu;
+    BMenuField* fThemeField;
+    BStringView* fPreview;
     std::vector<GitInstallation> fInstallations;
     std::unique_ptr<BFilePanel> fPanel;
 };

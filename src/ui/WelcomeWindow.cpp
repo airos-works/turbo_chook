@@ -2,9 +2,11 @@
 #include "ui/Application.h"
 #include "ui/Messages.h"
 #include "ui/Widgets.h"
+#include "ui/Appearance.h"
 #include <Autolock.h>
 #include <Button.h>
 #include <Entry.h>
+#include <GroupView.h>
 #include <LayoutBuilder.h>
 #include <ListView.h>
 #include <Path.h>
@@ -18,21 +20,21 @@ class RecentItem : public BListItem {
 public:
     RecentItem(std::string name, std::string path, bool exists) : fName(std::move(name)), fPath(std::move(path)), fExists(exists) {}
     void DrawItem(BView* owner, BRect frame, bool complete) override {
-        rgb_color base = IsSelected() ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR);
+        rgb_color base = IsSelected() ? Palette::Current().selection : Palette::Current().background;
         owner->SetHighColor(base); owner->FillRect(frame);
-        rgb_color text = IsSelected() ? ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR) : ui_color(B_LIST_ITEM_TEXT_COLOR);
+        rgb_color text = IsSelected() ? Palette::Current().selectionText : Palette::Current().text;
         if (!fExists) text = Mix(text, base, 0.5f);
-        BFont bold(be_bold_font); font_height fh; bold.GetHeight(&fh);
+        BFont bold(&BoldFont()); font_height fh; bold.GetHeight(&fh);
         owner->SetFont(&bold); owner->SetHighColor(text);
         owner->DrawString(fName.c_str(), BPoint(frame.left + 8, frame.top + fh.ascent + 4));
-        BFont plain(be_plain_font); plain.SetSize(plain.Size() * 0.9f); owner->SetFont(&plain);
+        BFont plain(&PlainFont()); plain.SetSize(plain.Size() * 0.9f); owner->SetFont(&plain);
         owner->SetHighColor(Mix(text, base, 0.35f));
         owner->DrawString((fExists ? fPath : fPath + "  (missing)").c_str(), BPoint(frame.left + 8, frame.top + fh.ascent + fh.descent + fh.ascent + 6));
-        owner->SetFont(be_plain_font);
+        owner->SetFont(&PlainFont());
     }
     void Update(BView* owner, const BFont* font) override {
         BListItem::Update(owner, font);
-        font_height fh; be_bold_font->GetHeight(&fh);
+        font_height fh; BoldFont().GetHeight(&fh);
         SetHeight((fh.ascent + fh.descent) * 2 + 12);
     }
     const std::string& Path() const { return fPath; }
@@ -49,10 +51,11 @@ WelcomeWindow::WelcomeWindow()
     fOpenButton = new BButton("openRecent", "Open", new BMessage(kOpenRecent));
     fOpenButton->SetEnabled(false);
     auto title = new BStringView("title", "Turbo Chook");
-    BFont big(be_bold_font); big.SetSize(big.Size() * 1.6f); title->SetFont(&big);
+    BFont big(&BoldFont()); big.SetSize(big.Size() * 1.6f); title->SetFont(&big);
     auto subtitle = new BStringView("subtitle", "Git management for Haiku. Open a repository, clone one, or start fresh.");
     auto forget = new BButton("forget", "Remove from List", new BMessage(kForgetRecent));
-    BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
+    BGroupView* root = new BGroupView("root", B_VERTICAL, B_USE_DEFAULT_SPACING);
+    BLayoutBuilder::Group<>(root, B_VERTICAL, B_USE_DEFAULT_SPACING)
         .SetInsets(B_USE_WINDOW_INSETS)
         .Add(title).Add(subtitle)
         .AddGroup(B_HORIZONTAL)
@@ -66,7 +69,9 @@ WelcomeWindow::WelcomeWindow()
         .Add(scroll, 1.0f)
         .AddGroup(B_HORIZONTAL).Add(forget).AddGlue().Add(fOpenButton).End()
     .End();
+    BLayoutBuilder::Group<>(this, B_VERTICAL, 0).Add(root).End();
     fOpenButton->MakeDefault(true);
+    Appearance::Current().Apply(this);
     Reload();
     CenterOnScreen();
 }
@@ -99,6 +104,7 @@ void WelcomeWindow::MessageReceived(BMessage* message) {
             break;
         }
         case kRefresh: Reload(); break;
+        case kPreferencesChanged: Appearance::Current().Apply(this); fRecent->SetFont(&PlainFont()); Reload(); break;
         case kOpenRepository: case kCloneRepository: case kNewRepository: case kShowPreferences:
             be_app->PostMessage(message); break;
         case B_SIMPLE_DATA: {

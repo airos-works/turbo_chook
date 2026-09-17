@@ -33,6 +33,7 @@ public:
     BSize MinSize() override { return BSize(100, 60); }
     BSize PreferredSize() override { return BSize(600, 400); }
     void ScrollToHunk(int direction);   // +1 next, -1 previous
+    void Restyle();
 private:
     struct Row { enum Kind { kFileHeader, kHunkHeader, kLine, kNote } kind; int file = -1, hunk = -1, line = -1; };
     struct Button { BRect frame; uint32 command; int file, hunk; std::string label; };

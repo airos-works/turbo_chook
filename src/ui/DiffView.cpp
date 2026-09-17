@@ -1,5 +1,6 @@
 #include "ui/DiffView.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include <ScrollBar.h>
 #include <Window.h>
 #include <algorithm>
@@ -8,14 +9,19 @@
 namespace tc {
 DiffView::DiffView()
     : BView("diff", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE | B_FULL_UPDATE_ON_RESIZE), fPalette(Palette::Current()) {
-    fFont = *be_fixed_font;
-    fBoldFont = *be_bold_font;
+    fFont = FixedFont();
+    fBoldFont = BoldFont();
     SetViewColor(B_TRANSPARENT_COLOR);
-    SetLowColor(ui_color(B_LIST_BACKGROUND_COLOR));
+    SetLowColor(Palette::Current().background);
 }
 void DiffView::AttachedToWindow() {
     BView::AttachedToWindow();
+    Restyle();
+}
+void DiffView::Restyle() {
     fPalette = Palette::Current();
+    fFont = FixedFont(); fBoldFont = BoldFont();
+    SetLowColor(fPalette.background);
     font_height fh; fFont.GetHeight(&fh);
     fRowHeight = std::ceil(fh.ascent + fh.descent + fh.leading) + 4;
     fCharWidth = fFont.StringWidth("0");
@@ -87,12 +93,12 @@ int DiffView::RowAt(BPoint where) const {
     return index >= 0 && index < static_cast<int>(fRows.size()) ? index : -1;
 }
 void DiffView::Draw(BRect updateRect) {
-    rgb_color base = ui_color(B_LIST_BACKGROUND_COLOR);
+    rgb_color base = Palette::Current().background;
     SetHighColor(base); FillRect(updateRect);
     if (fRows.empty()) {
-        SetFont(be_plain_font);
+        SetFont(&PlainFont());
         SetHighColor(fPalette.muted);
-        font_height fh; be_plain_font->GetHeight(&fh);
+        font_height fh; PlainFont().GetHeight(&fh);
         std::string message = fMessage.empty() ? "Select a change to see its diff." : fMessage;
         size_t start = 0;
         float y = Bounds().top + 24 + fh.ascent;
@@ -117,7 +123,7 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
     font_height fh; fFont.GetHeight(&fh);
     const float baseline = frame.top + 2 + fh.ascent;
     const float left = Bounds().left;   // headers stay put horizontally
-    rgb_color text = ui_color(B_LIST_ITEM_TEXT_COLOR);
+    rgb_color text = Palette::Current().text;
     const DiffFile& file = fFiles[row.file];
     if (row.kind == Row::kFileHeader) {
         SetHighColor(fPalette.header); FillRect(frame);
@@ -137,8 +143,8 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
         return;
     }
     if (row.kind == Row::kNote) {
-        SetHighColor(ui_color(B_LIST_BACKGROUND_COLOR)); FillRect(frame);
-        SetFont(be_plain_font); SetHighColor(fPalette.muted);
+        SetHighColor(Palette::Current().background); FillRect(frame);
+        SetFont(&PlainFont()); SetHighColor(fPalette.muted);
         DrawString("Binary file; no textual diff.", BPoint(left + 12, baseline));
         return;
     }
@@ -148,10 +154,10 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
         SetFont(&fFont); SetHighColor(Mix(text, fPalette.hunk, 0.25f));
         DrawString(Elide(hunk.header, 90).c_str(), BPoint(left + 8, baseline));
         // Action buttons on the right edge.
-        SetFont(be_plain_font);
-        font_height ph; be_plain_font->GetHeight(&ph);
+        SetFont(&PlainFont());
+        font_height ph; PlainFont().GetHeight(&ph);
         for (const auto& button : ButtonsFor(index)) {
-            SetHighColor(Mix(fPalette.hunk, ui_color(B_CONTROL_BACKGROUND_COLOR), 0.8f)); FillRoundRect(button.frame, 3, 3);
+            SetHighColor(Mix(fPalette.hunk, Palette::Current().panel, 0.8f)); FillRoundRect(button.frame, 3, 3);
             SetHighColor(Mix(fPalette.hunk, text, 0.4f)); StrokeRoundRect(button.frame, 3, 3);
             SetHighColor(text);
             DrawString(button.label.c_str(), BPoint(button.frame.left + 8, button.frame.top + (button.frame.Height() - (ph.ascent + ph.descent)) / 2 + ph.ascent));
@@ -159,13 +165,13 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
         return;
     }
     const DiffLine& line = hunk.lines[row.line];
-    rgb_color background = ui_color(B_LIST_BACKGROUND_COLOR);
+    rgb_color background = Palette::Current().background;
     rgb_color numbers = fPalette.muted;
     if (line.kind == '+') background = fPalette.added;
     else if (line.kind == '-') background = fPalette.removed;
     else if (line.kind == '\\') background = Mix(background, fPalette.muted, 0.1f);
     bool selected = fSelectedRows.count(index) > 0;
-    if (selected) background = Mix(background, ui_color(B_LIST_SELECTED_BACKGROUND_COLOR), 0.55f);
+    if (selected) background = Mix(background, Palette::Current().selection, 0.55f);
     SetHighColor(background); FillRect(frame);
     SetFont(&fFont);
     // The text lives in content coordinates so it scrolls; the gutter is painted
@@ -184,7 +190,7 @@ void DiffView::DrawRow(const Row& row, BRect frame, int index) {
     DrawString(marker.c_str(), BPoint(gutterWidth + 4, baseline));
     DrawString(content.c_str(), BPoint(gutterWidth + 4 + fCharWidth * 2, baseline));
     BRect gutter(left, frame.top, left + gutterWidth, frame.bottom);
-    SetHighColor(Mix(background, ui_color(B_PANEL_BACKGROUND_COLOR), 0.35f)); FillRect(gutter);
+    SetHighColor(Mix(background, Palette::Current().panel, 0.35f)); FillRect(gutter);
     SetHighColor(numbers);
     if (line.oldNumber > 0) { std::string n = std::to_string(line.oldNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth - fFont.StringWidth(n.c_str()) - 4, baseline)); }
     if (line.newNumber > 0) { std::string n = std::to_string(line.newNumber); DrawString(n.c_str(), BPoint(gutter.left + fNumberWidth * 2 - fFont.StringWidth(n.c_str()) - 4, baseline)); }
@@ -201,7 +207,7 @@ std::vector<DiffView::Button> DiffView::ButtonsFor(int index) const {
     float top = index * fRowHeight, bottom = (index + 1) * fRowHeight - 1;
     float x = Bounds().left + Bounds().Width() - 8;
     for (auto it = actions.rbegin(); it != actions.rend(); ++it) {
-        float w = be_plain_font->StringWidth(it->first.c_str()) + 16;
+        float w = PlainFont().StringWidth(it->first.c_str()) + 16;
         result.push_back({BRect(x - w, top + 1, x, bottom - 1), it->second, row.file, row.hunk, it->first});
         x -= w + 6;
     }

@@ -18,6 +18,7 @@ public:
     void SetPullRequests(std::vector<PullRequest> requests, const std::string& error);
     void SetDetails(const PullRequest& request, const std::vector<PullRequestComment>& comments, const std::vector<PullRequestReview>& reviews);
     void SetStatus(const std::string& text);
+    void Restyle();
     void SetRepository(const std::string& repository, bool hasToken);
     std::string State() const;
     const PullRequest* Selected() const;

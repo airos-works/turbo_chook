@@ -1,4 +1,5 @@
 #include "ui/Widgets.h"
+#include "ui/Appearance.h"
 #include "ui/Messages.h"
 #include "core/Process.h"
 #include <Alert.h>
@@ -18,25 +19,21 @@
 
 namespace tc {
 Palette Palette::Current() {
+    const Theme& t = Appearance::Current().Colors();
     Palette p;
-    bool dark = DarkUI();
-    rgb_color base = ui_color(B_LIST_BACKGROUND_COLOR);
-    p.added = dark ? rgb_color{34, 74, 46, 255} : rgb_color{223, 246, 228, 255};
-    p.removed = dark ? rgb_color{86, 40, 44, 255} : rgb_color{252, 226, 228, 255};
-    p.addedText = dark ? rgb_color{140, 220, 160, 255} : rgb_color{24, 110, 52, 255};
-    p.removedText = dark ? rgb_color{240, 150, 150, 255} : rgb_color{170, 34, 44, 255};
-    p.hunk = dark ? rgb_color{44, 56, 74, 255} : rgb_color{228, 236, 250, 255};
-    p.header = Mix(base, ui_color(B_PANEL_BACKGROUND_COLOR), 0.7f);
-    p.muted = Mix(ui_color(B_LIST_ITEM_TEXT_COLOR), base, 0.45f);
-    p.badge = dark ? rgb_color{70, 90, 120, 255} : rgb_color{214, 226, 246, 255};
-    p.badgeText = dark ? rgb_color{200, 220, 250, 255} : rgb_color{30, 60, 120, 255};
-    p.current = dark ? rgb_color{56, 130, 90, 255} : rgb_color{190, 236, 200, 255};
-    p.remote = dark ? rgb_color{110, 90, 60, 255} : rgb_color{248, 232, 200, 255};
-    p.tag = dark ? rgb_color{120, 100, 40, 255} : rgb_color{250, 240, 190, 255};
-    p.stash = dark ? rgb_color{90, 70, 120, 255} : rgb_color{232, 220, 250, 255};
-    p.conflict = dark ? rgb_color{140, 60, 40, 255} : rgb_color{255, 214, 190, 255};
+    p.dark = t.dark;
+    p.background = t.background; p.panel = t.panel; p.text = t.text; p.selection = t.selection; p.selectionText = t.selectionText;
+    p.border = t.border; p.accent = t.accent; p.link = t.link;
+    p.added = t.added; p.removed = t.removed; p.addedText = t.addedText; p.removedText = t.removedText;
+    p.hunk = t.hunk; p.header = Mix(t.background, t.panel, 0.7f); p.muted = t.muted;
+    p.badge = t.badge; p.badgeText = t.dark ? rgb_color{200, 220, 250, 255} : rgb_color{30, 60, 120, 255};
+    p.current = t.current; p.remote = t.remote; p.tag = t.tag; p.stash = t.stash; p.conflict = t.conflict;
     return p;
 }
+bool DarkUI() { return Appearance::Current().Colors().dark; }
+const BFont& PlainFont() { return Appearance::Current().Plain(); }
+const BFont& BoldFont() { return Appearance::Current().Bold(); }
+const BFont& FixedFont() { return Appearance::Current().Fixed(); }
 std::string FormatDate(const std::string& iso, bool relative) {
     if (iso.size() < 16) return iso;
     if (!relative) return iso.substr(0, 10) + " " + iso.substr(11, 5);

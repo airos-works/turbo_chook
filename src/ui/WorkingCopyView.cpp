@@ -1,6 +1,7 @@
 #include "ui/WorkingCopyView.h"
 #include "ui/DiffView.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include <Button.h>
 #include <CheckBox.h>
 #include <LayoutBuilder.h>
@@ -21,10 +22,10 @@ void FileItem::Update(BView* owner, const BFont* font) {
 }
 void FileItem::DrawItem(BView* owner, BRect frame, bool) {
     Palette palette = Palette::Current();
-    rgb_color base = IsSelected() ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR);
-    rgb_color text = IsSelected() ? ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR) : ui_color(B_LIST_ITEM_TEXT_COLOR);
+    rgb_color base = IsSelected() ? Palette::Current().selection : Palette::Current().background;
+    rgb_color text = IsSelected() ? Palette::Current().selectionText : Palette::Current().text;
     owner->SetHighColor(base); owner->FillRect(frame);
-    font_height fh; be_plain_font->GetHeight(&fh);
+    font_height fh; PlainFont().GetHeight(&fh);
     float baseline = frame.top + (frame.Height() - (fh.ascent + fh.descent)) / 2 + fh.ascent;
     char code = fFile.conflicted() ? '!' : fFile.untracked() ? '?' : fStagedSide ? fFile.index : fFile.worktree;
     rgb_color badge = palette.badge;
@@ -39,15 +40,15 @@ void FileItem::DrawItem(BView* owner, BRect frame, bool) {
     BRect box(frame.left + 6, frame.top + 3, frame.left + 22, frame.bottom - 3);
     owner->SetHighColor(badge); owner->FillRoundRect(box, 3, 3);
     owner->SetHighColor(DarkUI() ? rgb_color{240, 240, 240, 255} : rgb_color{30, 30, 30, 255});
-    BFont bold(be_bold_font); bold.SetSize(std::max(8.0f, be_bold_font->Size() * 0.85f));
+    BFont bold(&BoldFont()); bold.SetSize(std::max(8.0f, BoldFont().Size() * 0.85f));
     owner->SetFont(&bold);
     std::string letter(1, code);
     owner->DrawString(letter.c_str(), BPoint(box.left + (box.Width() - bold.StringWidth(letter.c_str())) / 2, baseline - 1));
-    owner->SetFont(be_plain_font); owner->SetHighColor(text);
+    owner->SetFont(&PlainFont()); owner->SetHighColor(text);
     std::string label = fFile.path;
     if (!fFile.originalPath.empty()) label = fFile.originalPath + " \xe2\x86\x92 " + fFile.path;
     BString truncated(label.c_str());
-    be_plain_font->TruncateString(&truncated, B_TRUNCATE_BEGINNING, std::max(40.0f, frame.Width() - 36));
+    PlainFont().TruncateString(&truncated, B_TRUNCATE_BEGINNING, std::max(40.0f, frame.Width() - 36));
     owner->DrawString(truncated.String(), BPoint(box.right + 8, baseline));
 }
 // ---------------------------------------------------------------- FileListView
@@ -120,10 +121,10 @@ WorkingCopyView::WorkingCopyView(BMessenger window) : BView("workingCopy", B_WIL
     fUnstaged = new FileListView("unstaged", false, BMessenger(this));
     fStaged = new FileListView("staged", true, BMessenger(this));
     fUnstagedTitle = new BStringView("unstagedTitle", "Unstaged changes");
-    fUnstagedTitle->SetFont(be_bold_font);
+    fUnstagedTitle->SetFont(&BoldFont());
     fUnstagedTitle->SetExplicitMinSize(BSize(130, B_SIZE_UNSET));
     fStagedTitle = new BStringView("stagedTitle", "Staged changes");
-    fStagedTitle->SetFont(be_bold_font);
+    fStagedTitle->SetFont(&BoldFont());
     fStagedTitle->SetExplicitMinSize(BSize(130, B_SIZE_UNSET));
     fStageAll = new BButton("stageAll", "Stage All", new BMessage(kStageAll));
     fUnstageAll = new BButton("unstageAll", "Unstage All", new BMessage(kUnstageAll));
@@ -136,7 +137,7 @@ WorkingCopyView::WorkingCopyView(BMessenger window) : BView("workingCopy", B_WIL
     fAmend = new BCheckBox("amend", "Amend last commit", new BMessage(kAmendToggled));
     fCommit = new BButton("commit", "Commit", new BMessage(kCommit));
     fStateLabel = new BStringView("stateLabel", "");
-    fStateLabel->SetFont(be_bold_font);
+    fStateLabel->SetFont(&BoldFont());
     fStateLabel->SetTruncation(B_TRUNCATE_END); fStateLabel->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fStateBar = new BView("stateBar", B_WILL_DRAW);
     fStateBar->SetViewColor(Palette::Current().conflict);
@@ -262,6 +263,12 @@ bool WorkingCopyView::SelectedFile(FileStatus& file, bool& staged) const {
     return false;
 }
 std::vector<FileStatus> WorkingCopyView::Selection(bool staged) const { return staged ? fStaged->SelectedFiles() : fUnstaged->SelectedFiles(); }
+void WorkingCopyView::Restyle() {
+    Palette palette = Palette::Current();
+    fStateBar->SetViewColor(palette.conflict); fConflictBar->SetViewColor(palette.conflict);
+    for (FileListView* list : {fUnstaged, fStaged}) { list->SetFont(&PlainFont()); for (int32 i = 0; i < list->CountItems(); ++i) list->ItemAt(i)->Update(list, &PlainFont()); list->Invalidate(); }
+    fDiff->Restyle();
+}
 void WorkingCopyView::SetBusy(bool busy) {
     fCommit->SetEnabled(!busy && (fStaged->CountItems() > 0 || fAmend->Value() == B_CONTROL_ON));
     fStageAll->SetEnabled(!busy && fUnstaged->CountItems() > 0);

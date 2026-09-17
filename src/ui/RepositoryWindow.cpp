@@ -1,5 +1,6 @@
 #include "ui/RepositoryWindow.h"
 #include "ui/Application.h"
+#include "ui/Appearance.h"
 #include "ui/DiffView.h"
 #include "ui/HistoryPanel.h"
 #include "ui/HistoryView.h"
@@ -10,6 +11,7 @@
 #include <Autolock.h>
 #include <Button.h>
 #include <CardLayout.h>
+#include <GroupView.h>
 #include <LayoutBuilder.h>
 #include <Menu.h>
 #include <MenuBar.h>
@@ -48,7 +50,8 @@ RepositoryWindow::RepositoryWindow(std::string root)
     fCards->AddView(fWorkingCopy);
     fCards->AddView(fHistory);
     fCards->AddView(fPullRequests);
-    BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
+    BGroupView* content = new BGroupView("content", B_VERTICAL, 0);
+    BLayoutBuilder::Group<>(content, B_VERTICAL, 0)
         .Add(fMenuBar)
         .Add(toolbar)
         .Add(new BSeparatorView(B_HORIZONTAL))
@@ -59,6 +62,7 @@ RepositoryWindow::RepositoryWindow(std::string root)
         .Add(new BSeparatorView(B_HORIZONTAL))
         .AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING).SetInsets(B_USE_SMALL_INSETS, 2, B_USE_SMALL_INSETS, 2).Add(fBranchLabel).Add(fStatus).AddGlue().End()
     .End();
+    BLayoutBuilder::Group<>(this, B_VERTICAL, 0).Add(content).End();
     // Explicit limits keep the splitter movable: without them the cards' natural
     // minimum width (long labels, many buttons) pins the sidebar to the extremes.
     sidebarScroll->SetExplicitMinSize(BSize(160, 100));
@@ -83,6 +87,7 @@ RepositoryWindow::RepositoryWindow(std::string root)
         float total = Frame().Width();
         if (sidebar >= 160 && sidebar < total - 320) { fSplit->SetItemWeight(0, sidebar / total, false); fSplit->SetItemWeight(1, (total - sidebar) / total, true); }
     }
+    Appearance::Current().Apply(this);
     fRunner.reset(new BMessageRunner(BMessenger(this), new BMessage(kRefreshTick), 4000000));
     Refresh();
 }
@@ -438,7 +443,13 @@ void RepositoryWindow::MessageReceived(BMessage* message) {
         case kWorkDone: fJobs->Drain(); fOps->Drain(); fNetwork->Drain(); break;
         case kRefresh: Refresh(); if (fCard == kCardPullRequests) LoadPullRequests(true); break;
         case kRefreshTick: if (IsActive() && !fBusy) Refresh(); break;
-        case kPreferencesChanged: fRepo->SetOptions(Options()); Refresh(); break;
+        case kPreferencesChanged: {
+            fRepo->SetOptions(Options());
+            Appearance::Current().Apply(this);
+            fSidebar->Restyle(); fWorkingCopy->Restyle(); fHistory->Restyle(); fPullRequests->Restyle();
+            Refresh();
+            break;
+        }
         case kQuitApp: be_app->PostMessage(B_QUIT_REQUESTED); break;
         case kOpenRepository: case kCloneRepository: case kNewRepository: case kShowPreferences: be_app->PostMessage(message); break;
         case B_ABOUT_REQUESTED: be_app->PostMessage(message); break;

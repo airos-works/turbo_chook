@@ -19,6 +19,7 @@ public:
     void SetFilter(const std::string& filter);
     void SetCurrentHead(const std::string& hash) { fHead = hash; Invalidate(); }
     void SetLoading(bool loading, bool more);
+    void Restyle();
     std::vector<std::string> SelectedHashes() const;
     const Commit* CommitFor(const std::string& hash) const;
     void SelectHash(const std::string& hash, bool notify = true);

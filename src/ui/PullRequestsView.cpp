@@ -1,5 +1,6 @@
 #include "ui/PullRequestsView.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include "ui/MarkdownText.h"
 #include <Button.h>
 #include <LayoutBuilder.h>
@@ -24,28 +25,28 @@ public:
     }
     void DrawItem(BView* owner, BRect frame, bool) override {
         Palette palette = Palette::Current();
-        rgb_color base = IsSelected() ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR);
-        rgb_color text = IsSelected() ? ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR) : ui_color(B_LIST_ITEM_TEXT_COLOR);
+        rgb_color base = IsSelected() ? Palette::Current().selection : Palette::Current().background;
+        rgb_color text = IsSelected() ? Palette::Current().selectionText : Palette::Current().text;
         owner->SetHighColor(base); owner->FillRect(frame);
-        font_height fh; be_plain_font->GetHeight(&fh);
+        font_height fh; PlainFont().GetHeight(&fh);
         float line = std::ceil(fh.ascent + fh.descent);
         std::string status = fRequest.statusLine();
         rgb_color fill = status == "merged" ? palette.stash : status == "closed" ? palette.removed : status == "draft" ? palette.badge : palette.current;
-        BFont small(be_plain_font); small.SetSize(std::max(8.0f, be_plain_font->Size() * 0.8f));
+        BFont small(&PlainFont()); small.SetSize(std::max(8.0f, PlainFont().Size() * 0.8f));
         owner->SetFont(&small);
         float w = small.StringWidth(status.c_str()) + 10;
         BRect box(frame.left + 8, frame.top + 6, frame.left + 8 + w, frame.top + 6 + line);
         owner->SetHighColor(fill); owner->FillRoundRect(box, 4, 4);
         owner->SetHighColor(DarkUI() ? rgb_color{240, 240, 240, 255} : rgb_color{30, 30, 30, 255});
         owner->DrawString(status.c_str(), BPoint(box.left + 5, box.top + fh.ascent - 1));
-        owner->SetFont(be_bold_font); owner->SetHighColor(text);
+        owner->SetFont(&BoldFont()); owner->SetHighColor(text);
         BString title(("#" + std::to_string(fRequest.number) + "  " + fRequest.title).c_str());
-        be_bold_font->TruncateString(&title, B_TRUNCATE_END, frame.Width() - w - 24);
+        BoldFont().TruncateString(&title, B_TRUNCATE_END, frame.Width() - w - 24);
         owner->DrawString(title.String(), BPoint(box.right + 8, frame.top + 6 + fh.ascent));
-        owner->SetFont(be_plain_font); owner->SetHighColor(Mix(text, base, 0.35f));
+        owner->SetFont(&PlainFont()); owner->SetHighColor(Mix(text, base, 0.35f));
         std::string meta = fRequest.author + "  " + fRequest.headRef + " \xe2\x86\x92 " + fRequest.baseRef + "  updated " + FormatDate(fRequest.updatedAt, true);
         BString metaText(meta.c_str());
-        be_plain_font->TruncateString(&metaText, B_TRUNCATE_END, frame.Width() - 16);
+        PlainFont().TruncateString(&metaText, B_TRUNCATE_END, frame.Width() - 16);
         owner->DrawString(metaText.String(), BPoint(frame.left + 8, frame.top + 8 + line + fh.ascent));
     }
     const PullRequest& Request() const { return fRequest; }
@@ -64,7 +65,7 @@ PullRequestsView::PullRequestsView(BMessenger window) : BView("pullRequests", B_
     fDetails->SetWordWrap(true);
     fDetails->SetInsets(8, 8, 8, 8);
     fTitle = new BStringView("prTitle", "Select a pull request");
-    fTitle->SetFont(be_bold_font);
+    fTitle->SetFont(&BoldFont());
     fStatus = new BStringView("prStatus", "");
     fStatus->SetTruncation(B_TRUNCATE_END);
     fStatus->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
@@ -123,6 +124,14 @@ void PullRequestsView::SetRepository(const std::string& repository, bool hasToke
     else SetStatus(repository);
     UpdateButtons();
 }
+void PullRequestsView::Restyle() {
+    fList->SetFont(&PlainFont());
+    for (int32 i = 0; i < fList->CountItems(); ++i) fList->ItemAt(i)->Update(fList, &PlainFont());
+    fList->Invalidate();
+    fDetails->SetViewColor(Palette::Current().background); fDetails->SetLowColor(Palette::Current().background);
+    const PullRequest* pr = Selected();
+    if (pr) { BMessage again(kPullRequestSelected); MessageReceived(&again); }
+}
 void PullRequestsView::SetStatus(const std::string& text) { fStatus->SetText(text.c_str()); }
 void PullRequestsView::SetPullRequests(std::vector<PullRequest> requests, const std::string& error) {
     int selectedNumber = Selected() ? Selected()->number : 0;
@@ -154,7 +163,7 @@ void PullRequestsView::SetDetails(const PullRequest& pr, const std::vector<PullR
         text += "\n\n" + comment.body + "\n";
     }
     Palette palette = Palette::Current();
-    MarkdownStyle style{ui_color(B_DOCUMENT_TEXT_COLOR), ui_color(B_LINK_TEXT_COLOR), palette.addedText, palette.muted, palette.muted, be_plain_font->Size()};
+    MarkdownStyle style{Palette::Current().text, Palette::Current().link, palette.addedText, palette.muted, palette.muted, PlainFont().Size()};
     fLinks = SetMarkdown(fDetails, text, style);
     UpdateButtons();
 }
@@ -177,7 +186,7 @@ void PullRequestsView::MessageReceived(BMessage* message) {
             if (!pr) break;
             fTitle->SetText(("#" + std::to_string(pr->number) + "  " + pr->title).c_str());
             Palette palette = Palette::Current();
-            MarkdownStyle style{ui_color(B_DOCUMENT_TEXT_COLOR), ui_color(B_LINK_TEXT_COLOR), palette.addedText, palette.muted, palette.muted, be_plain_font->Size()};
+            MarkdownStyle style{Palette::Current().text, Palette::Current().link, palette.addedText, palette.muted, palette.muted, PlainFont().Size()};
             fLinks = SetMarkdown(fDetails, "*Loading details" B_UTF8_ELLIPSIS "*\n\n" + pr->body, style);
             BMessage forward(kPullRequestSelected); forward.AddInt32("number", pr->number);
             fWindow.SendMessage(&forward);

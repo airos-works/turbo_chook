@@ -52,6 +52,7 @@ public:
     std::vector<FileStatus> Selection(bool staged) const;
     DiffView* Diff() const { return fDiff; }
     void SetBusy(bool busy);
+    void Restyle();
     void FocusMessage();
 private:
     void UpdateButtons();

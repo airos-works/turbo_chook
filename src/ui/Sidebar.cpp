@@ -1,5 +1,6 @@
 #include "ui/Sidebar.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include <Bitmap.h>
 #include <Window.h>
 #include <algorithm>
@@ -14,16 +15,16 @@ void SidebarItem::Update(BView* owner, const BFont* font) {
 }
 void SidebarItem::DrawItem(BView* owner, BRect frame, bool) {
     Palette palette = Palette::Current();
-    rgb_color base = ui_color(B_LIST_BACKGROUND_COLOR);
-    rgb_color text = ui_color(B_LIST_ITEM_TEXT_COLOR);
+    rgb_color base = Palette::Current().background;
+    rgb_color text = Palette::Current().text;
     bool section = fEntry.kind == SidebarEntry::kSection;
-    if (IsSelected() && !section) { base = ui_color(B_LIST_SELECTED_BACKGROUND_COLOR); text = ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR); }
+    if (IsSelected() && !section) { base = Palette::Current().selection; text = Palette::Current().selectionText; }
     owner->SetHighColor(base); owner->FillRect(frame);
-    font_height fh; be_plain_font->GetHeight(&fh);
+    font_height fh; PlainFont().GetHeight(&fh);
     float baseline = frame.top + (frame.Height() - (fh.ascent + fh.descent)) / 2 + fh.ascent;
     float x = frame.left + 6 + OutlineLevel() * 14;
     if (section) {
-        BFont small(be_bold_font); small.SetSize(std::max(8.0f, be_bold_font->Size() * 0.85f));
+        BFont small(&BoldFont()); small.SetSize(std::max(8.0f, BoldFont().Size() * 0.85f));
         owner->SetFont(&small); owner->SetHighColor(palette.muted);
         std::string label = fEntry.label;
         for (auto& c : label) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
@@ -32,7 +33,7 @@ void SidebarItem::DrawItem(BView* owner, BRect frame, bool) {
             std::string count = std::to_string(fEntry.count);
             owner->DrawString(count.c_str(), BPoint(frame.right - 8 - small.StringWidth(count.c_str()), baseline));
         }
-        owner->SetFont(be_plain_font);
+        owner->SetFont(&PlainFont());
         return;
     }
     // Icon glyph: a small coloured marker per kind.
@@ -52,11 +53,11 @@ void SidebarItem::DrawItem(BView* owner, BRect frame, bool) {
     else if (fEntry.kind == SidebarEntry::kBranch || fEntry.kind == SidebarEntry::kRemoteBranch) { owner->FillEllipse(dot); }
     else owner->FillRoundRect(dot, 2, 2);
     x += 14;
-    owner->SetFont(fEntry.current ? be_bold_font : be_plain_font);
+    owner->SetFont(fEntry.current ? &BoldFont() : &PlainFont());
     owner->SetHighColor(fEntry.gone ? Mix(text, base, 0.5f) : text);
     float right = frame.right - 6;
     // Badges from the right: ahead/behind counters or counts.
-    BFont small(be_plain_font); small.SetSize(std::max(8.0f, be_plain_font->Size() * 0.8f));
+    BFont small(&PlainFont()); small.SetSize(std::max(8.0f, PlainFont().Size() * 0.8f));
     auto badge = [&](const std::string& value, rgb_color fill) {
         owner->SetFont(&small);
         float w = small.StringWidth(value.c_str()) + 8;
@@ -71,16 +72,22 @@ void SidebarItem::DrawItem(BView* owner, BRect frame, bool) {
     if (fEntry.gone) badge("gone", palette.conflict);
     if (fEntry.kind == SidebarEntry::kWorkingCopy && fEntry.count > 0) badge(std::to_string(fEntry.count), palette.badge);
     if (fEntry.kind == SidebarEntry::kPullRequests && fEntry.count > 0) badge(std::to_string(fEntry.count), palette.badge);
-    owner->SetFont(fEntry.current ? be_bold_font : be_plain_font);
+    owner->SetFont(fEntry.current ? &BoldFont() : &PlainFont());
     owner->SetHighColor(fEntry.gone ? Mix(text, base, 0.5f) : text);
     BString label(fEntry.label.c_str());
-    (fEntry.current ? be_bold_font : be_plain_font)->TruncateString(&label, B_TRUNCATE_MIDDLE, std::max(30.0f, right - x));
+    (fEntry.current ? &BoldFont() : &PlainFont())->TruncateString(&label, B_TRUNCATE_MIDDLE, std::max(30.0f, right - x));
     owner->DrawString(label.String(), BPoint(x, baseline));
-    owner->SetFont(be_plain_font);
+    owner->SetFont(&PlainFont());
 }
 Sidebar::Sidebar() : BOutlineListView("sidebar", B_SINGLE_SELECTION_LIST, B_WILL_DRAW | B_NAVIGABLE | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE), fPalette(Palette::Current()) {
     SetSelectionMessage(new BMessage(kSidebarSelection));
     SetInvocationMessage(new BMessage(kSidebarInvoke));
+}
+void Sidebar::Restyle() {
+    fPalette = Palette::Current();
+    SetFont(&PlainFont());
+    for (int32 i = 0; i < FullListCountItems(); ++i) FullListItemAt(i)->Update(this, &PlainFont());
+    Invalidate();
 }
 SidebarItem* Sidebar::Section(const std::string& label) const {
     for (int32 i = 0; i < FullListCountItems(); ++i) {
@@ -257,7 +264,7 @@ void Sidebar::Draw(BRect updateRect) {
     BOutlineListView::Draw(updateRect);
     if (fDropIndex >= 0 && fDropIndex < CountItems()) {
         BRect frame = ItemFrame(fDropIndex);
-        SetHighColor(ui_color(B_CONTROL_HIGHLIGHT_COLOR));
+        SetHighColor(Palette::Current().accent);
         SetPenSize(2); StrokeRect(frame.InsetByCopy(1, 1)); SetPenSize(1);
     }
 }

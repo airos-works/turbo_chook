@@ -46,6 +46,7 @@ public:
     Sidebar();
     void SetDropTarget(BMessenger target) { fTarget = target; }
     void SetModel(const SidebarModel& model);
+    void Restyle();   // fonts or colours changed
     const SidebarEntry* Selected() const;
     const SidebarEntry* EntryAt(int32 index) const;
     void SelectKind(SidebarEntry::Kind kind, const std::string& name = {});

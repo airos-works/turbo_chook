@@ -4,6 +4,7 @@
 #include "ui/WelcomeWindow.h"
 #include "ui/PreferencesWindow.h"
 #include "ui/CloneWindow.h"
+#include "ui/Appearance.h"
 #include "core/Git.h"
 #include <Alert.h>
 #include <Autolock.h>
@@ -18,6 +19,7 @@ Application* App() { return static_cast<Application*>(be_app); }
 Application::Application(const char* signature, std::string settingsPath)
     : BApplication(signature), fSettings(settingsPath.empty() ? Settings::DefaultPath() : settingsPath), fSettingsLock("settings") {
     fSettings.Load();
+    Appearance::Current().Load(fSettings);
 }
 Application::~Application() {}
 void Application::ReadyToRun() {
@@ -179,9 +181,10 @@ void Application::ShowWelcome() {
 }
 void Application::BroadcastPreferences() {
     Installations(true);
+    { BAutolock lock(fSettingsLock); Appearance::Current().Load(fSettings); }
     for (int32 i = 0; i < CountWindows(); ++i) {
         BWindow* window = WindowAt(i);
-        if (dynamic_cast<RepositoryWindow*>(window)) window->PostMessage(kPreferencesChanged);
+        if (dynamic_cast<PreferencesWindow*>(window) == nullptr) window->PostMessage(kPreferencesChanged);
     }
 }
 }

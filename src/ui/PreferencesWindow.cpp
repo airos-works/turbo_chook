@@ -3,6 +3,7 @@
 #include "ui/Messages.h"
 #include "ui/Widgets.h"
 #include "core/Git.h"
+#include "ui/Appearance.h"
 #include <Autolock.h>
 #include <Box.h>
 #include <Button.h>
@@ -15,7 +16,10 @@
 #include <PopUpMenu.h>
 #include <StringView.h>
 #include <TextControl.h>
+#include <TabView.h>
+#include <GroupView.h>
 #include <algorithm>
+#include <cstring>
 
 namespace tc {
 PreferencesWindow::PreferencesWindow()
@@ -74,11 +78,63 @@ PreferencesWindow::PreferencesWindow()
     BLayoutBuilder::Group<>(workflowBox, B_VERTICAL, B_USE_SMALL_SPACING).SetInsets(B_USE_DEFAULT_SPACING)
         .Add(fPrune).Add(fPullRebase).Add(fShowAll).Add(fContext)
     .End();
+    // Look & Feel: font family, size and theme for every Turbo Chook window.
+    const Appearance& appearance = Appearance::Current();
+    fFontMenu = new BPopUpMenu("font");
+    BMenuItem* systemFont = new BMenuItem("System font", new BMessage(kMenuAction));
+    fFontMenu->AddItem(systemFont);
+    fFontMenu->AddSeparatorItem();
+    bool markedFont = false;
+    for (int32 i = 0; i < count_font_families(); ++i) {
+        font_family family;
+        if (get_font_family(i, &family) != B_OK) continue;
+        BMessage* message = new BMessage(kMenuAction); message->AddString("family", family);
+        auto item = new BMenuItem(family, message);
+        fFontMenu->AddItem(item);
+        if (appearance.FontFamily() == family) { item->SetMarked(true); markedFont = true; }
+    }
+    if (!markedFont) systemFont->SetMarked(true);
+    fFontField = new BMenuField("fontField", "Font:", fFontMenu);
+    fFontSize = new BTextControl("fontSize", "Size (points):", appearance.FontSize() > 0 ? std::to_string(static_cast<int>(appearance.FontSize())).c_str() : "", new BMessage(kMenuAction));
+    fFontSize->SetModificationMessage(new BMessage(kMenuAction));
+    fThemeMenu = new BPopUpMenu("theme");
+    for (const auto& theme : Theme::Builtins()) {
+        BMessage* message = new BMessage(kMenuAction); message->AddString("theme", theme.id.c_str());
+        auto item = new BMenuItem((theme.name + (theme.system ? "" : theme.dark ? "  (dark)" : "  (light)")).c_str(), message);
+        fThemeMenu->AddItem(item);
+        if (theme.id == appearance.ThemeID()) item->SetMarked(true);
+    }
+    if (!fThemeMenu->FindMarked()) fThemeMenu->ItemAt(0)->SetMarked(true);
+    fThemeField = new BMenuField("themeField", "Theme:", fThemeMenu);
+    fPreview = new BStringView("preview", "Preview: main \xe2\x86\x92 origin/main  \xe2\x86\x91 1  \xe2\x80\xa2 Merge feature/parser into main");
+    fPreview->SetExplicitMinSize(BSize(300, 48));
+    fPreview->SetAlignment(B_ALIGN_CENTER);
+    auto lookBox = new BBox("lookBox"); lookBox->SetLabel("Fonts and colours");
+    BLayoutBuilder::Group<>(lookBox, B_VERTICAL, B_USE_SMALL_SPACING).SetInsets(B_USE_DEFAULT_SPACING)
+        .AddGrid(B_USE_DEFAULT_SPACING, B_USE_SMALL_SPACING)
+            .Add(fFontField->CreateLabelLayoutItem(), 0, 0).Add(fFontField->CreateMenuBarLayoutItem(), 1, 0)
+            .Add(fFontSize->CreateLabelLayoutItem(), 0, 1).Add(fFontSize->CreateTextViewLayoutItem(), 1, 1)
+            .Add(fThemeField->CreateLabelLayoutItem(), 0, 2).Add(fThemeField->CreateMenuBarLayoutItem(), 1, 2)
+        .End()
+        .Add(fPreview)
+        .Add(new BStringView("lookHint", "The theme colours every list, diff and history view; System follows Haiku's Appearance preferences. Leave the size empty for the system size."))
+    .End();
+    auto general = new BGroupView(B_VERTICAL, B_USE_DEFAULT_SPACING);
+    general->SetName("General");
+    BLayoutBuilder::Group<>(general).SetInsets(B_USE_DEFAULT_SPACING).Add(gitBox).Add(githubBox).Add(authorBox).Add(workflowBox).AddGlue().End();
+    auto look = new BGroupView(B_VERTICAL, B_USE_DEFAULT_SPACING);
+    look->SetName("Look & Feel");
+    BLayoutBuilder::Group<>(look).SetInsets(B_USE_DEFAULT_SPACING).Add(lookBox).AddGlue().End();
+    auto tabs = new BTabView("tabs", B_WIDTH_FROM_LABEL);
+    tabs->AddTab(general);
+    tabs->AddTab(look);
+    tabs->SetBorder(B_NO_BORDER);
     auto apply = new BButton("apply", "Apply", new BMessage(kApplyPreferences));
     BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING).SetInsets(B_USE_WINDOW_INSETS)
-        .Add(gitBox).Add(githubBox).Add(authorBox).Add(workflowBox)
+        .Add(tabs)
         .AddGroup(B_HORIZONTAL).AddGlue().Add(new BButton("close", "Close", new BMessage(B_QUIT_REQUESTED))).Add(apply).End()
     .End();
+    UpdatePreview();
     apply->MakeDefault(true);
     PopulateGit(executable);
     CenterOnScreen();
@@ -119,6 +175,16 @@ void PreferencesWindow::Apply() {
         settings.SetBool("showAllBranches", fShowAll->Value() == B_CONTROL_ON);
         int context = std::atoi(fContext->Text());
         settings.SetInt("diffContext", context < 0 ? 0 : context > 50 ? 50 : context);
+        BMenuItem* font = fFontMenu->FindMarked();
+        const char* family = nullptr;
+        if (font && font->Message()) font->Message()->FindString("family", &family);
+        settings.Set("fontFamily", family ? family : "");
+        int size = std::atoi(fFontSize->Text());
+        settings.SetInt("fontSize", size >= 8 && size <= 32 ? size : 0);
+        BMenuItem* theme = fThemeMenu->FindMarked();
+        const char* themeID = nullptr;
+        if (theme && theme->Message()) theme->Message()->FindString("theme", &themeID);
+        settings.Set("theme", themeID ? themeID : "system");
         settings.Save();
     }
     GitOptions options; options.executable = App()->GitExecutable();
@@ -129,9 +195,26 @@ void PreferencesWindow::Apply() {
     be_app->PostMessage(kPreferencesChanged);
     PopulateGit(App()->Preferences().Get("gitExecutable"));
 }
+void PreferencesWindow::UpdatePreview() {
+    BMenuItem* font = fFontMenu->FindMarked();
+    const char* family = nullptr;
+    if (font && font->Message()) font->Message()->FindString("family", &family);
+    BMenuItem* theme = fThemeMenu->FindMarked();
+    const char* themeID = nullptr;
+    if (theme && theme->Message()) theme->Message()->FindString("theme", &themeID);
+    Theme colors = Theme::ById(themeID ? themeID : "system");
+    BFont preview(be_plain_font);
+    if (family) { font_family f; std::strncpy(f, family, sizeof(f) - 1); f[sizeof(f) - 1] = 0; preview.SetFamilyAndFace(f, B_REGULAR_FACE); }
+    int size = std::atoi(fFontSize->Text());
+    if (size >= 8 && size <= 32) preview.SetSize(size);
+    fPreview->SetFont(&preview);
+    fPreview->SetViewColor(colors.background); fPreview->SetLowColor(colors.background); fPreview->SetHighColor(colors.text);
+    fPreview->Invalidate();
+}
 void PreferencesWindow::MessageReceived(BMessage* message) {
     switch (message->what) {
         case kApplyPreferences: Apply(); break;
+        case kMenuAction: UpdatePreview(); break;
         case kRescanGit: PopulateGit(App()->Preferences().Get("gitExecutable")); break;
         case kSelectGit: break;
         case kBrowseGit: {

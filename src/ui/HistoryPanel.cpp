@@ -2,6 +2,7 @@
 #include "ui/DiffView.h"
 #include "ui/HistoryView.h"
 #include "ui/Messages.h"
+#include "ui/Widgets.h"
 #include <LayoutBuilder.h>
 #include <ScrollView.h>
 #include <StringView.h>
@@ -27,7 +28,7 @@ private:
 HistoryPanel::HistoryPanel(BMessenger window) : BView("historyPanel", B_WILL_DRAW), fWindow(window) {
     SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
     fTitle = new BStringView("historyTitle", "History");
-    fTitle->SetFont(be_bold_font);
+    fTitle->SetFont(&BoldFont());
     fTitle->SetTruncation(B_TRUNCATE_END); fTitle->SetExplicitMinSize(BSize(60, B_SIZE_UNSET));
     fSearch = new BTextControl("search", "Search:", "", new BMessage(kSearchHistory));
     fSearch->SetModificationMessage(new BMessage(kSearchHistory));
@@ -62,6 +63,13 @@ void HistoryPanel::AttachedToWindow() {
     fSearch->SetTarget(this);
     fFiles->SetTarget(this);
 }
+void HistoryPanel::Restyle() {
+    fHistory->Restyle(); fDiff->Restyle();
+    fFiles->SetFont(&PlainFont());
+    Palette palette = Palette::Current();
+    fInfo->SetFontAndColor(&PlainFont(), B_FONT_ALL, &palette.text);
+    fInfo->SetViewColor(palette.background); fInfo->SetLowColor(palette.background);
+}
 std::string HistoryPanel::SearchText() const { return fSearch->Text(); }
 void HistoryPanel::SetTitle(const std::string& title) { fTitle->SetText(title.c_str()); }
 void HistoryPanel::ShowCommit(const Commit& commit, const std::vector<CommitFile>& files) {
@@ -74,7 +82,7 @@ void HistoryPanel::ShowCommit(const Commit& commit, const std::vector<CommitFile
     text += "Date:   " + FormatDate(commit.authorDate) + " (" + FormatDate(commit.authorDate, true) + ")\n";
     if (!commit.refs.empty()) { text += "Refs:   "; for (size_t i = 0; i < commit.refs.size(); ++i) text += (i ? ", " : "") + commit.refs[i]; text += "\n"; }
     fInfo->SetText(text.c_str());
-    BFont bold(be_bold_font);
+    BFont bold(&BoldFont());
     fInfo->SetFontAndColor(0, commit.subject.size(), &bold);
     fCommitFiles = files;
     fFiles->MakeEmpty();

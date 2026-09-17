@@ -18,6 +18,7 @@ public:
     HistoryView* History() const { return fHistory; }
     DiffView* Diff() const { return fDiff; }
     void SetTitle(const std::string& title);
+    void Restyle();
     void ShowCommit(const Commit& commit, const std::vector<CommitFile>& files);
     void ShowRange(const std::string& from, const std::string& to, const std::vector<CommitFile>& files);
     void ShowStash(const Stash& stash, const std::vector<CommitFile>& files);
