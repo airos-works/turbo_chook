@@ -364,7 +364,7 @@ GitResult<std::vector<FileStatus>> GitRepository::Status(Cancel cancel) const {
 static const char* kLogFormat = "--format=%H\x1f%P\x1f%an\x1f%ae\x1f%aI\x1f%cI\x1f%s\x1f%D\x1f%b";
 GitResult<std::vector<Commit>> GitRepository::Log(const std::vector<std::string>& revisions, size_t skip, size_t count,
     const std::string& path, Cancel cancel) const {
-    std::vector<std::string> args{"log", "-z", "--topo-order", "--date=iso-strict", std::string(kLogFormat),
+    std::vector<std::string> args{"log", "-z", "--date-order", "--date=iso-strict", std::string(kLogFormat),
         "--skip=" + std::to_string(skip), "-n", std::to_string(count)};
     if (revisions.empty()) { args.push_back("--branches"); args.push_back("--tags"); args.push_back("--remotes"); args.push_back("HEAD"); }
     else for (const auto& rev : revisions) { if (!rev.empty() && rev.front() != '-') args.push_back(rev); }

@@ -17,6 +17,7 @@ GraphRow CommitGraph::Append(const Commit& commit) {
     }
     row.lane = waiting.front();
     row.color = fLanes[row.lane].color;
+    row.merge = commit.parents.size() > 1;
     const std::vector<Lane> before = fLanes;
     std::vector<Lane> after = fLanes;
     for (int lane : waiting) after[lane].hash.clear();

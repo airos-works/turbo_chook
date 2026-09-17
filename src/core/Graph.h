@@ -10,6 +10,7 @@ namespace tc {
 struct GraphSegment { int fromLane = 0, toLane = 0, color = 0; bool starts = false, ends = false; };
 struct GraphRow {
     int lane = 0, color = 0, lanes = 1;   // lanes: total lanes in use at this row
+    bool merge = false;                   // more than one parent: drawn as a hollow node
     std::vector<GraphSegment> segments;
 };
 class CommitGraph {

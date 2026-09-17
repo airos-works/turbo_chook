@@ -176,27 +176,48 @@ void HistoryView::DrawBadge(const std::string& label, rgb_color fill, float& x, 
     SetFont(be_plain_font);
 }
 void HistoryView::DrawGraph(const GraphRow& row, BRect cell, bool selected) {
-    const float centerY = (cell.top + cell.bottom) / 2;
-    auto laneX = [&](int lane) { return cell.left + 8 + lane * kLaneWidth; };
-    SetPenSize(2);
+    // Railway drawing: lanes are vertical rails; a lane that changes position
+    // between this row and the next follows an S-curve, and a merge parent
+    // leaves the node with a curve into its lane. Straight pass-throughs are
+    // drawn first so curves and the node sit on top.
+    const float centerY = std::floor((cell.top + cell.bottom) / 2) + 0.5f;
+    const float top = cell.top, bottom = cell.bottom + 1;
+    auto laneX = [&](int lane) { return std::floor(cell.left + 8 + lane * kLaneWidth) + 0.5f; };
+    auto curve = [&](float x0, float y0, float x1, float y1) {
+        // Cubic from (x0,y0) to (x1,y1) that leaves and arrives vertically.
+        float midY = (y0 + y1) / 2;
+        BPoint points[4] = {BPoint(x0, y0), BPoint(x0, midY), BPoint(x1, midY), BPoint(x1, y1)};
+        StrokeBezier(points);
+    };
     SetDrawingMode(B_OP_ALPHA);
-    for (const auto& segment : row.segments) {
-        SetHighColor(LaneColor(segment.color));
-        float fromX = laneX(segment.fromLane), toX = laneX(segment.toLane);
-        if (segment.ends) { StrokeLine(BPoint(fromX, cell.top), BPoint(fromX, centerY - 4)); StrokeLine(BPoint(fromX, centerY - 4), BPoint(laneX(row.lane), centerY)); continue; }
-        if (segment.starts) {
-            if (fromX == toX) StrokeLine(BPoint(fromX, centerY), BPoint(fromX, cell.bottom + 1));
-            else { StrokeLine(BPoint(fromX, centerY), BPoint(toX, centerY + fRowHeight / 2 - 1)); StrokeLine(BPoint(toX, centerY + fRowHeight / 2 - 1), BPoint(toX, cell.bottom + 1)); }
-            continue;
+    SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+    SetPenSize(1.6f);
+    for (int pass = 0; pass < 2; ++pass) {
+        for (const auto& segment : row.segments) {
+            float fromX = laneX(segment.fromLane), toX = laneX(segment.toLane);
+            bool straight = fromX == toX;
+            if ((pass == 0) != straight) continue;
+            SetHighColor(LaneColor(segment.color));
+            if (segment.ends) {
+                if (straight) StrokeLine(BPoint(fromX, top), BPoint(fromX, centerY));
+                else curve(fromX, top, laneX(row.lane), centerY);
+            } else if (segment.starts) {
+                if (straight) StrokeLine(BPoint(fromX, centerY), BPoint(fromX, bottom));
+                else curve(fromX, centerY, toX, bottom);
+            } else {
+                if (straight) StrokeLine(BPoint(fromX, top), BPoint(fromX, bottom));
+                else curve(fromX, top, toX, bottom);
+            }
         }
-        if (fromX == toX) StrokeLine(BPoint(fromX, cell.top), BPoint(fromX, cell.bottom + 1));
-        else { StrokeLine(BPoint(fromX, cell.top), BPoint(fromX, centerY - 2)); StrokeLine(BPoint(fromX, centerY - 2), BPoint(toX, centerY + fRowHeight / 2 - 1)); StrokeLine(BPoint(toX, centerY + fRowHeight / 2 - 1), BPoint(toX, cell.bottom + 1)); }
     }
     SetPenSize(1);
     float nodeX = laneX(row.lane);
     BRect node(nodeX - kNodeRadius, centerY - kNodeRadius, nodeX + kNodeRadius, centerY + kNodeRadius);
-    SetHighColor(LaneColor(row.color)); FillEllipse(node);
-    SetHighColor(selected ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR)); StrokeEllipse(node);
+    rgb_color fill = LaneColor(row.color);
+    rgb_color ring = selected ? ui_color(B_LIST_SELECTED_BACKGROUND_COLOR) : ui_color(B_LIST_BACKGROUND_COLOR);
+    SetHighColor(ring); FillEllipse(node.InsetByCopy(-1.5f, -1.5f));
+    SetHighColor(fill); FillEllipse(node);
+    if (row.merge) { SetHighColor(ring); FillEllipse(node.InsetByCopy(2, 2)); }
     SetDrawingMode(B_OP_COPY);
 }
 void HistoryView::NotifySelection() {
