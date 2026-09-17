@@ -59,7 +59,7 @@ public:
 private:
     void AddSection(const char* label, SidebarEntry::Kind kind, std::vector<SidebarEntry> children, bool keepEmpty = true);
     SidebarItem* Section(const std::string& label) const;
-    std::vector<std::string> fCollapsed;
+    std::vector<std::string> fCollapsed, fExpanded;   // explicit user choices survive rebuilds
     std::string fSignature;
     BMessenger fTarget;
     int32 fDropIndex = -1;

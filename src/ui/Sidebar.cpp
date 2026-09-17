@@ -117,11 +117,16 @@ void Sidebar::SetModel(const SidebarModel& model) {
     // Remember selection and collapsed sections across rebuilds.
     SidebarEntry previous; bool hadSelection = false;
     if (const SidebarEntry* selected = Selected()) { previous = *selected; hadSelection = true; }
-    fCollapsed.clear();
+    // Record every section's and remote's current state before the items go away.
     for (int32 i = 0; i < FullListCountItems(); ++i) {
         auto item = static_cast<SidebarItem*>(FullListItemAt(i));
-        if (item->Entry().kind == SidebarEntry::kSection && !item->IsExpanded()) fCollapsed.push_back(item->Entry().label);
-        if (item->Entry().kind == SidebarEntry::kRemote && !item->IsExpanded()) fCollapsed.push_back("remote:" + item->Entry().name);
+        std::string key;
+        if (item->Entry().kind == SidebarEntry::kSection) key = item->Entry().label;
+        else if (item->Entry().kind == SidebarEntry::kRemote) key = "remote:" + item->Entry().name;
+        else continue;
+        fCollapsed.erase(std::remove(fCollapsed.begin(), fCollapsed.end(), key), fCollapsed.end());
+        fExpanded.erase(std::remove(fExpanded.begin(), fExpanded.end(), key), fExpanded.end());
+        (item->IsExpanded() ? fExpanded : fCollapsed).push_back(key);
     }
     while (FullListCountItems() > 0) delete RemoveItem(static_cast<int32>(0));
     std::vector<SidebarEntry> top;
@@ -150,13 +155,18 @@ void Sidebar::SetModel(const SidebarModel& model) {
             if (item->Entry().kind == SidebarEntry::kRemote && item->Entry().name == r.name) remoteItem = item;
         }
         if (!remoteItem) continue;
-        bool expanded = std::find(fCollapsed.begin(), fCollapsed.end(), "remote:" + r.name) == fCollapsed.end();
-        remoteItem->SetExpanded(expanded);
+        int count = 0;
         for (auto b = model.branches.rbegin(); b != model.branches.rend(); ++b) {
             if (!b->remote || b->remoteName() != r.name) continue;
             SidebarEntry e; e.kind = SidebarEntry::kRemoteBranch; e.label = b->shortName(); e.name = b->name; e.hash = b->hash;
             AddUnder(new SidebarItem(e, 2), remoteItem);
+            ++count;
         }
+        // Keep the user's choice; a remote with a long branch list starts collapsed.
+        std::string key = "remote:" + r.name;
+        bool expanded = std::find(fExpanded.begin(), fExpanded.end(), key) != fExpanded.end()
+            || (std::find(fCollapsed.begin(), fCollapsed.end(), key) == fCollapsed.end() && count <= 30);
+        if (expanded) Expand(remoteItem); else Collapse(remoteItem);
     }
     for (const auto& t : model.tags) { SidebarEntry e; e.kind = SidebarEntry::kTag; e.label = t.name; e.name = t.name; e.hash = t.hash; e.detail = t.subject; tags.push_back(e); }
     AddSection("Tags", SidebarEntry::kSection, tags);
@@ -213,6 +223,12 @@ void Sidebar::MouseDown(BPoint where) {
     int32 index = IndexOf(where);
     const SidebarEntry* entry = EntryAt(index);
     if (entry && entry->kind == SidebarEntry::kSection) {
+        auto item = static_cast<SidebarItem*>(ItemAt(index));
+        if (item->IsExpanded()) Collapse(item); else Expand(item);
+        return;
+    }
+    // Clicking a remote's disclosure arrow toggles it like a section; remember the choice.
+    if (entry && entry->kind == SidebarEntry::kRemote && where.x < 6 + 14 + 14) {
         auto item = static_cast<SidebarItem*>(ItemAt(index));
         if (item->IsExpanded()) Collapse(item); else Expand(item);
         return;
