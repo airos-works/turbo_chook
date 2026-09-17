@@ -61,9 +61,15 @@ Haiku fork once its toolchain provides the Interface Kit.
   `~/config/non-packaged/bin`, `~/config/bin` and `PATH`, plus any executable you
   add with *Other…*, each with its reported version. The newest is used until
   you pick one; open repositories switch immediately.
+- **Look & Feel**: Preferences chooses the font family, point size and a
+  colour theme for every window: System (Haiku's Appearance settings) or the
+  ten palettes shared with Kiri (Obsidian, Daylight, Nord, Midnight, Forest,
+  Ember, Linen, Glacier, Rose, Meadow). Pull request descriptions and comments
+  render as Markdown.
 - Welcome window with recent repositories, clone and init, Tracker and
-  Terminal shortcuts, persistent window frame, and a periodic refresh while the
-  window is active.
+  Terminal shortcuts, persistent window frame and sidebar width, and a
+  periodic refresh while the window is active that keeps your scroll position,
+  selections and collapsed sections.
 
 ## Install or build
 

@@ -1,4 +1,24 @@
-# Verification record, 0.1.0 alpha (2026-09-17)
+# Verification record
+
+## Fixes after the first round of testing (2026-09-17)
+
+Nine issues from the first test session were fixed, one commit each, and
+checked on the beta6 VM with the demo repository plus a clone of
+`mity/md4c` (841 commits, real merges, GitHub pull requests):
+
+| Issue | Fix | Checked |
+| --- | --- | --- |
+| #1 icon | Redrawn bird with HVIF level-of-detail shapes | Native renders at 16, 32, 64, 128 and 256 px |
+| #2 themes | Look & Feel tab: font family, size, ten themes plus System | Obsidian at 14 pt applied live, System restored |
+| #3 scrolling | History reloads only when refs move and keeps its position | Paged md4c history; no jumps on refresh or selection |
+| #4 remotes | Section and remote collapse state survive rebuilds; big remotes start collapsed | Rebuilds after commits keep `origin` closed |
+| #5 sidebar | Labels no longer bound the layout's maximum width; explicit minimums; width saved | Splitter dragged both ways, 260 px default |
+| #6 diff scrolling | Content drawn in scrolled coordinates, pinned gutter, no reload of an unchanged diff | Long line scrolled right and back cleanly |
+| #7 Markdown | md4c-based renderer for pull request text | md4c PR #425 with headings, code, links and a table |
+| #8 pull requests | No reload on the echoed sidebar selection; one reload per minute unless asked | Card opened once; list stable |
+| #9 graph | Vertical rails, S-curved merge links, hollow merge nodes, `--date-order` | Demo and md4c merges |
+
+## 0.1.0 alpha (2026-09-17)
 
 Everything below was exercised on the Turbo Chook VM (Haiku R1~beta6
 hrev59866+79, x86_64) described in [VM.md](VM.md), against the demo repository
