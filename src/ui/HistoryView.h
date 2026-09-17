@@ -38,7 +38,7 @@ private:
     void Relayout();
     void UpdateScrollBars();
     int RowAt(BPoint where) const;
-    void DrawGraph(const GraphRow& row, BRect cell, bool selected);
+    void DrawGraph(const GraphRow& row, float top, int pass, bool selected, rgb_color background);
     void DrawBadge(const std::string& text, rgb_color fill, float& x, float baseline, float top, float bottom);
     void NotifySelection();
     void ShowContextMenu(BPoint screen, int index);

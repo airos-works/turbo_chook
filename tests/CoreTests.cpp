@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <map>
+#include <algorithm>
 #include <string>
 #include <unistd.h>
 
@@ -86,38 +88,82 @@ static void TestOtherParsers() {
     auto directories = GitSearchDirectories("/opt/git/bin:/boot/system/bin");
     CHECK(directories.front() == "/boot/system/bin"); CHECK(directories.back() == "/opt/git/bin");
 }
+// Checks the drawing contract: pass-throughs keep their column, links only
+// start or end at the node, and the columns (with colours) leaving a row at
+// the bottom are exactly the columns entering the next row at the top.
+static bool GraphContinuous(const std::vector<GraphRow>& rows, std::string* why = nullptr) {
+    auto fail = [&](const std::string& reason) { if (why) *why = reason; return false; };
+    for (size_t r = 0; r < rows.size(); ++r) {
+        const GraphRow& row = rows[r];
+        for (const auto& e : row.up) if (e.from != e.to && e.to != row.lane) return fail("up link not into node at row " + std::to_string(r));
+        for (const auto& e : row.down) if (e.from != e.to && e.from != row.lane) return fail("down link not from node at row " + std::to_string(r));
+        for (const auto& e : row.up) if (e.from == e.to && e.from == row.lane) {
+            bool intoNode = true; (void)intoNode;   // a straight line into the node's column is the node's own lane
+        }
+        if (r + 1 == rows.size()) break;
+        std::map<int, int> bottom, top;
+        for (const auto& e : row.down) { auto it = bottom.find(e.to); if (it != bottom.end() && it->second != e.color) return fail("two colours leave column at row " + std::to_string(r)); bottom[e.to] = e.color; }
+        for (const auto& e : rows[r + 1].up) { if (top.count(e.from)) return fail("column enters twice at row " + std::to_string(r + 1)); top[e.from] = e.color; }
+        if (bottom != top) return fail("discontinuity between rows " + std::to_string(r) + " and " + std::to_string(r + 1));
+    }
+    return true;
+}
 static void TestGraph() {
-    // main: C(merge of B and F) -> B -> A ; feature: F -> A
+    // main: C (merge of B and F) -> B -> A ; feature: F -> A
     Commit c; c.hash = "c"; c.parents = {"b", "f"};
     Commit f; f.hash = "f"; f.parents = {"a"};
     Commit b; b.hash = "b"; b.parents = {"a"};
     Commit a; a.hash = "a";
     auto rows = LayoutGraph({c, f, b, a});
     CHECK_EQ(rows.size(), 4u);
-    CHECK_EQ(rows[0].lane, 0);
-    CHECK_EQ(rows[1].lane, 1);            // f sits on the second lane
-    CHECK_EQ(rows[2].lane, 0);
-    CHECK_EQ(rows[3].lane, 0);            // a is alone again on the first lane
-    bool shifted = false;                 // b's lane closes; a's lane slides left underneath it
-    for (const auto& s : rows[2].segments) if (s.fromLane == 1 && s.toLane == 0 && !s.starts) shifted = true;
-    CHECK(shifted);
-    bool joined = false;
-    for (const auto& s : rows[2].segments) if (s.fromLane == 0 && s.toLane == 0 && s.starts) joined = true;
-    CHECK(joined);
-    // A lane converging into an existing commit: two tips sharing one parent, listed tip-first.
+    CHECK(GraphContinuous(rows));
+    CHECK_EQ(rows[0].lane, 0); CHECK(rows[0].merge);
+    CHECK_EQ(rows[1].lane, 1);                          // the merged branch sits in the next column
+    CHECK_EQ(rows[2].lane, 0);                          // main keeps its column
+    CHECK_EQ(rows[3].lane, 0);
+    bool converges = false;                             // the branch column joins the root's column
+    for (const auto& e : rows[3].up) if (e.from == 1 && e.to == 0) converges = true;
+    CHECK(converges);
+    // Columns never slide: when an inner branch ends, the outer one stays put.
+    Commit m2; m2.hash = "m2"; m2.parents = {"m1", "y"};
+    Commit m1; m1.hash = "m1"; m1.parents = {"base", "x"};
+    Commit y; y.hash = "y"; y.parents = {"base"};
+    Commit x; x.hash = "x"; x.parents = {"base"};
+    Commit base; base.hash = "base";
+    auto nested = LayoutGraph({m2, m1, y, x, base});
+    CHECK(GraphContinuous(nested));
+    CHECK_EQ(nested[2].lane, 1); CHECK_EQ(nested[3].lane, 2);
+    for (const auto& row : nested) for (const auto& e : row.down) if (e.from != row.lane) CHECK_EQ(e.from, e.to);
+    // A freed column is reused by the next branch tip instead of widening.
     Commit t1; t1.hash = "t1"; t1.parents = {"p"}; Commit t2; t2.hash = "t2"; t2.parents = {"p"}; Commit p; p.hash = "p";
     auto twin = LayoutGraph({t1, t2, p});
-    bool converge = false;   // t2's lane joins p's lane right away
-    for (const auto& s : twin[1].segments) if (s.starts && s.fromLane == 1 && s.toLane == 0) converge = true;
-    CHECK(converge); CHECK_EQ(twin[2].lane, 0); CHECK_EQ(twin[2].lanes, 1);
-    CHECK_EQ(rows[1].lanes, 2);
-    bool passThrough = false;
-    for (const auto& s : rows[1].segments) if (s.fromLane == 0 && s.toLane == 0) passThrough = true;
-    CHECK(passThrough);
-    // Independent roots each get their own lane.
-    Commit x; x.hash = "x"; Commit y; y.hash = "y";
-    auto roots = LayoutGraph({x, y});
-    CHECK_EQ(roots[0].lane, 0); CHECK_EQ(roots[1].lane, 0);   // x's lane frees up for y
+    CHECK(GraphContinuous(twin));
+    CHECK_EQ(twin[1].lane, 1); CHECK_EQ(twin[2].lane, 0); CHECK_EQ(twin[2].lanes, 1);
+    Commit r1; r1.hash = "r1"; Commit r2; r2.hash = "r2";
+    auto roots = LayoutGraph({r1, r2});
+    CHECK_EQ(roots[0].lane, 0); CHECK_EQ(roots[1].lane, 0);
+    // Random DAGs in topological order, including octopus merges and parents
+    // outside the loaded page.
+    unsigned seed = 12345;
+    auto rnd = [&](unsigned n) { seed = seed * 1103515245u + 12345u; return (seed >> 8) % n; };
+    for (int trial = 0; trial < 300; ++trial) {
+        int count = 5 + static_cast<int>(rnd(120));
+        std::vector<Commit> commits(count);
+        for (int i = 0; i < count; ++i) commits[i].hash = "h" + std::to_string(trial) + "_" + std::to_string(i);
+        for (int i = 0; i < count; ++i) {
+            int parents = rnd(10) < 7 ? 1 : rnd(10) < 8 ? 2 : rnd(4) == 0 ? 0 : 3;
+            for (int k = 0; k < parents; ++k) {
+                int later = i + 1 + static_cast<int>(rnd(12));
+                std::string parent = later < count ? commits[later].hash : "outside" + std::to_string(rnd(3));
+                if (std::find(commits[i].parents.begin(), commits[i].parents.end(), parent) == commits[i].parents.end()) commits[i].parents.push_back(parent);
+            }
+        }
+        std::string why;
+        auto layout = LayoutGraph(commits);
+        bool ok = GraphContinuous(layout, &why);
+        if (!ok) std::fprintf(stderr, "trial %d: %s\n", trial, why.c_str());
+        CHECK(ok);
+    }
 }
 static const char* kDiff =
     "diff --git a/file.txt b/file.txt\n"
@@ -248,7 +294,8 @@ static void TestLiveRepository() {
     CHECK(log.ok() && log.value.size() == 5 && log.value[0].merge());
     auto rows = LayoutGraph(log.value);
     CHECK_EQ(rows.size(), 5u);
-    CHECK(rows[0].segments.size() >= 2);
+    CHECK(GraphContinuous(rows));
+    CHECK(rows[0].merge && rows[0].down.size() >= 2);
     auto branches = repo.Branches();
     CHECK(branches.ok() && branches.value.size() == 2);
     auto commitFiles = repo.CommitFiles(log.value[0].hash);

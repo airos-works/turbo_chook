@@ -16,7 +16,7 @@ checked on the beta6 VM with the demo repository plus a clone of
 | #6 diff scrolling | Content drawn in scrolled coordinates, pinned gutter, no reload of an unchanged diff | Long line scrolled right and back cleanly |
 | #7 Markdown | md4c-based renderer for pull request text | md4c PR #425 with headings, code, links and a table |
 | #8 pull requests | No reload on the echoed sidebar selection; one reload per minute unless asked | Card opened once; list stable |
-| #9 graph | Vertical rails, S-curved merge links, hollow merge nodes, `--date-order` | Demo and md4c merges |
+| #9 graph | Stable lane columns with reuse, continuous per-row edges, horizontal links with rounded corners offset above/below the node, distinct lane colours, graph column sized to the 95th percentile with a fade for wider rows, `--date-order` | 7,005-commit platform-ui history: zero discontinuities; dense and wide regions checked on screen; random-DAG continuity tests |
 
 ## 0.1.0 alpha (2026-09-17)
 

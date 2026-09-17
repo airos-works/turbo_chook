@@ -12,7 +12,7 @@ namespace {
 const rgb_color kLaneColors[] = {
     {66, 133, 244, 255}, {52, 168, 83, 255}, {234, 67, 53, 255}, {251, 188, 4, 255},
     {155, 81, 224, 255}, {0, 172, 193, 255}, {255, 112, 67, 255}, {121, 85, 72, 255}};
-const float kLaneWidth = 14, kNodeRadius = 4;
+const float kLaneWidth = 14, kNodeRadius = 4.5f, kGraphInset = 10, kLinkOffset = 2;
 const float kAuthorWidth = 130, kDateWidth = 100;
 bool Matches(const Commit& c, const std::string& filter) {
     if (filter.empty()) return true;
@@ -58,12 +58,21 @@ void HistoryView::SetFilter(const std::string& filter) { fFilter = filter; Relay
 void HistoryView::SetLoading(bool loading, bool more) { fLoading = loading; fMore = more; if (!loading) fMoreRequested = false; Invalidate(); }
 void HistoryView::Relayout() {
     fVisible.clear();
-    int lanes = 1;
+    std::vector<int> widths;
+    widths.reserve(fCommits.size());
     for (size_t i = 0; i < fCommits.size(); ++i) {
         if (Matches(fCommits[i], fFilter)) fVisible.push_back(static_cast<int>(i));
-        if (i < fRows.size()) lanes = std::max(lanes, fRows[i].lanes);
+        if (i < fRows.size()) widths.push_back(fRows[i].lanes);
     }
-    fGraphWidth = fFilter.empty() ? std::min(240.0f, lanes * kLaneWidth + 12) : 12;
+    // Size the column for nearly every row; the rare very wide rows are clipped
+    // with a fade instead of pushing every subject off to the right.
+    int lanes = 1;
+    if (!widths.empty()) {
+        std::sort(widths.begin(), widths.end());
+        lanes = std::max(1, widths[std::min(widths.size() - 1, widths.size() * 95 / 100)]);
+    }
+    float cap = std::max(120.0f, Bounds().Width() * 0.32f);
+    fGraphWidth = fFilter.empty() ? std::min(cap, kGraphInset + (lanes - 1) * kLaneWidth + kGraphInset + 4) : 12;
     UpdateScrollBars();
     Invalidate();
 }
@@ -76,7 +85,7 @@ void HistoryView::UpdateScrollBars() {
         bar->SetProportion(height > 0 ? std::min(1.0f, Bounds().Height() / height) : 1.0f);
     }
 }
-void HistoryView::FrameResized(float, float) { UpdateScrollBars(); }
+void HistoryView::FrameResized(float, float) { Relayout(); }
 int HistoryView::RowAt(BPoint where) const {
     int index = static_cast<int>(std::floor(where.y / fRowHeight));
     return index >= 0 && index < static_cast<int>(fVisible.size()) ? index : -1;
@@ -121,8 +130,45 @@ void HistoryView::Draw(BRect updateRect) {
     int first = std::max(0, static_cast<int>(std::floor(updateRect.top / fRowHeight)));
     int last = std::min(static_cast<int>(fVisible.size()), static_cast<int>(std::floor(updateRect.bottom / fRowHeight)));
     const float width = Bounds().Width();
+    auto rowFrame = [&](int row) { return BRect(0, row * fRowHeight, width, (row + 1) * fRowHeight - 1); };
+    auto rowColor = [&](int row, int index) {
+        return fSelected.count(index) ? Palette::Current().selection : (row % 2 ? Mix(base, Palette::Current().panel, 0.18f) : base);
+    };
+    // Pass 1: every row background, so no row paints over its neighbour's lines.
+    for (int row = first; row <= last && row < static_cast<int>(fVisible.size()); ++row) {
+        SetHighColor(rowColor(row, fVisible[row])); FillRect(rowFrame(row));
+    }
+    // Pass 2: the graph for the rows in view (one row beyond each edge keeps links whole).
+    if (fFilter.empty()) {
+        PushState();
+        ClipToRect(BRect(0, updateRect.top, fGraphWidth - 1, updateRect.bottom));
+        SetDrawingMode(B_OP_ALPHA);
+        SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+        int from = std::max(0, first - 1), to = std::min(static_cast<int>(fVisible.size()) - 1, last + 1);
+        for (int pass = 0; pass < 3; ++pass)
+            for (int row = from; row <= to; ++row) {
+                int index = fVisible[row];
+                if (index < static_cast<int>(fRows.size())) DrawGraph(fRows[index], row * fRowHeight, pass, fSelected.count(index) > 0, rowColor(row, index));
+            }
+        PopState();
+        // Rows wider than the column fade out at its edge.
+        for (int row = first; row <= last && row < static_cast<int>(fVisible.size()); ++row) {
+            int index = fVisible[row];
+            if (index >= static_cast<int>(fRows.size()) || kGraphInset + fRows[index].lanes * kLaneWidth <= fGraphWidth) continue;
+            rgb_color back = rowColor(row, index);
+            BRect frame = rowFrame(row);
+            SetDrawingMode(B_OP_ALPHA);
+            for (int i = 0; i < 10; ++i) {
+                back.alpha = static_cast<uint8>(25 * (i + 1));
+                SetHighColor(back);
+                FillRect(BRect(fGraphWidth - 10 + i, frame.top, fGraphWidth - 10 + i, frame.bottom));
+            }
+            SetDrawingMode(B_OP_COPY);
+        }
+    }
+    // Pass 3: badges and text.
     for (int row = first; row <= last; ++row) {
-        BRect frame(0, row * fRowHeight, width, (row + 1) * fRowHeight - 1);
+        BRect frame = rowFrame(row);
         if (row == static_cast<int>(fVisible.size())) {
             SetFont(&PlainFont()); SetHighColor(fPalette.muted);
             DrawString(fLoading ? "Loading" B_UTF8_ELLIPSIS : "Scroll to load older commits", BPoint(fGraphWidth + 8, frame.top + 4 + fh.ascent));
@@ -132,9 +178,7 @@ void HistoryView::Draw(BRect updateRect) {
         int index = fVisible[row];
         const Commit& commit = fCommits[index];
         bool selected = fSelected.count(index) > 0;
-        rgb_color rowColor = selected ? Palette::Current().selection : (row % 2 ? Mix(base, Palette::Current().panel, 0.18f) : base);
-        SetHighColor(rowColor); FillRect(frame);
-        if (fFilter.empty() && index < static_cast<int>(fRows.size())) DrawGraph(fRows[index], BRect(0, frame.top, fGraphWidth, frame.bottom), selected);
+        rgb_color background = rowColor(row, index);
         float baseline = frame.top + (fRowHeight - (fh.ascent + fh.descent)) / 2 + fh.ascent;
         float x = fGraphWidth + 6;
         rgb_color textColor = selected ? Palette::Current().selectionText : text;
@@ -153,13 +197,12 @@ void HistoryView::Draw(BRect updateRect) {
         SetFont(commit.hash == fHead ? &BoldFont() : &PlainFont());
         SetHighColor(textColor);
         float subjectRight = width - kAuthorWidth - kDateWidth - 12;
-        std::string subject = commit.subject;
         BFont font; GetFont(&font);
-        BString truncated(subject.c_str());
+        BString truncated(commit.subject.c_str());
         font.TruncateString(&truncated, B_TRUNCATE_END, std::max(20.0f, subjectRight - x));
         DrawString(truncated.String(), BPoint(x, baseline));
         SetFont(&PlainFont());
-        SetHighColor(selected ? textColor : Mix(textColor, rowColor, 0.3f));
+        SetHighColor(selected ? textColor : Mix(textColor, background, 0.3f));
         BString author(commit.authorName.c_str());
         PlainFont().TruncateString(&author, B_TRUNCATE_END, kAuthorWidth - 8);
         DrawString(author.String(), BPoint(width - kAuthorWidth - kDateWidth, baseline));
@@ -179,50 +222,72 @@ void HistoryView::DrawBadge(const std::string& label, rgb_color fill, float& x, 
     x += w + 5;
     SetFont(&PlainFont());
 }
-void HistoryView::DrawGraph(const GraphRow& row, BRect cell, bool selected) {
-    // Railway drawing: lanes are vertical rails; a lane that changes position
-    // between this row and the next follows an S-curve, and a merge parent
-    // leaves the node with a curve into its lane. Straight pass-throughs are
-    // drawn first so curves and the node sit on top.
-    const float centerY = std::floor((cell.top + cell.bottom) / 2) + 0.5f;
-    const float top = cell.top, bottom = cell.bottom + 1;
-    auto laneX = [&](int lane) { return std::floor(cell.left + 8 + lane * kLaneWidth) + 0.5f; };
-    auto curve = [&](float x0, float y0, float x1, float y1) {
-        // Cubic from (x0,y0) to (x1,y1) that leaves and arrives vertically.
-        float midY = (y0 + y1) / 2;
-        BPoint points[4] = {BPoint(x0, y0), BPoint(x0, midY), BPoint(x1, midY), BPoint(x1, y1)};
-        StrokeBezier(points);
-    };
-    SetDrawingMode(B_OP_ALPHA);
-    SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
-    SetPenSize(1.6f);
-    for (int pass = 0; pass < 2; ++pass) {
-        for (const auto& segment : row.segments) {
-            float fromX = laneX(segment.fromLane), toX = laneX(segment.toLane);
-            bool straight = fromX == toX;
-            if ((pass == 0) != straight) continue;
-            SetHighColor(LaneColor(segment.color));
-            if (segment.ends) {
-                if (straight) StrokeLine(BPoint(fromX, top), BPoint(fromX, centerY));
-                else curve(fromX, top, laneX(row.lane), centerY);
-            } else if (segment.starts) {
-                if (straight) StrokeLine(BPoint(fromX, centerY), BPoint(fromX, bottom));
-                else curve(fromX, centerY, toX, bottom);
-            } else {
-                if (straight) StrokeLine(BPoint(fromX, top), BPoint(fromX, bottom));
-                else curve(fromX, top, toX, bottom);
-            }
+void HistoryView::DrawGraph(const GraphRow& row, float top, int pass, bool selected, rgb_color background) {
+    // Pass 0: straight rails. Pass 1: links, which leave or enter the node
+    // horizontally and turn into their column with a rounded corner. Pass 2: nodes.
+    const float bottom = top + fRowHeight;
+    const float cy = std::floor(top + fRowHeight / 2);
+    auto laneX = [&](int lane) { return std::floor(kGraphInset + lane * kLaneWidth); };
+    const float nodeX = laneX(row.lane);
+    if (pass == 0) {
+        SetPenSize(2);
+        for (const auto& e : row.up) {
+            if (e.from != e.to) continue;
+            SetHighColor(LaneColor(e.color));
+            StrokeLine(BPoint(laneX(e.from), top), BPoint(laneX(e.from), e.from == row.lane ? cy : bottom));
         }
+        for (const auto& e : row.down) {
+            if (e.from != e.to) continue;
+            SetHighColor(LaneColor(e.color));
+            // A pass-through was drawn full height by its up edge already.
+            bool passThrough = e.from != row.lane;
+            if (passThrough) {
+                bool drawn = false;
+                for (const auto& u : row.up) if (u.from == e.from && u.to == e.to) drawn = true;
+                if (drawn) continue;
+            }
+            StrokeLine(BPoint(laneX(e.from), passThrough ? top : cy), BPoint(laneX(e.from), bottom));
+        }
+        return;
+    }
+    if (pass == 1) {
+        SetPenSize(2);
+        const float radius = std::min(fRowHeight / 2 - kLinkOffset - 1, kLaneWidth * 0.6f);
+        auto corner = [&](BPoint start, BPoint control, BPoint end) {
+            BPoint points[4] = {start, BPoint(start.x + (control.x - start.x) * 0.55f, start.y + (control.y - start.y) * 0.55f),
+                BPoint(end.x + (control.x - end.x) * 0.55f, end.y + (control.y - end.y) * 0.55f), end};
+            StrokeBezier(points);
+        };
+        for (const auto& e : row.up) {
+            if (e.from == e.to) continue;
+            // Converging lane: down its column, round the corner, across to the node.
+            // Runs just above the centre so it never overlaps a link leaving the node.
+            float x = laneX(e.from), side = x > nodeX ? 1 : -1, y = cy - kLinkOffset;
+            float r = std::min(radius, std::fabs(x - nodeX));
+            SetHighColor(LaneColor(e.color));
+            StrokeLine(BPoint(x, top), BPoint(x, y - r));
+            corner(BPoint(x, y - r), BPoint(x, y), BPoint(x - side * r, y));
+            StrokeLine(BPoint(x - side * r, y), BPoint(nodeX, y));
+        }
+        for (const auto& e : row.down) {
+            if (e.from == e.to) continue;
+            // Parent link: across from the node, round the corner, down its column.
+            // Runs just below the centre, clear of lanes converging from above.
+            float x = laneX(e.to), side = x > nodeX ? 1 : -1, y = cy + kLinkOffset;
+            float r = std::min(radius, std::fabs(x - nodeX));
+            SetHighColor(LaneColor(e.color));
+            StrokeLine(BPoint(nodeX, y), BPoint(x - side * r, y));
+            corner(BPoint(x - side * r, y), BPoint(x, y), BPoint(x, y + r));
+            StrokeLine(BPoint(x, y + r), BPoint(x, bottom));
+        }
+        return;
     }
     SetPenSize(1);
-    float nodeX = laneX(row.lane);
-    BRect node(nodeX - kNodeRadius, centerY - kNodeRadius, nodeX + kNodeRadius, centerY + kNodeRadius);
+    BRect node(nodeX - kNodeRadius, cy - kNodeRadius, nodeX + kNodeRadius, cy + kNodeRadius);
     rgb_color fill = LaneColor(row.color);
-    rgb_color ring = selected ? Palette::Current().selection : Palette::Current().background;
-    SetHighColor(ring); FillEllipse(node.InsetByCopy(-1.5f, -1.5f));
     SetHighColor(fill); FillEllipse(node);
-    if (row.merge) { SetHighColor(ring); FillEllipse(node.InsetByCopy(2, 2)); }
-    SetDrawingMode(B_OP_COPY);
+    if (row.merge) { SetHighColor(background); FillEllipse(node.InsetByCopy(2.5f, 2.5f)); }
+    if (selected) { SetHighColor(Palette::Current().selectionText); StrokeEllipse(node.InsetByCopy(-2, -2)); }
 }
 void HistoryView::NotifySelection() {
     BMessage message(kHistorySelection);
