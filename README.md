@@ -13,6 +13,19 @@ Haiku fork once its toolchain provides the Interface Kit.
 
 ![Turbo Chook's history view](docs/screenshots/history.png)
 
+<!-- airos-ci:latest-builds:start -->
+## Latest builds
+
+Built automatically by air/OS CI from commit `ebe230b` on 2026-10-05 ([all files](https://github.com/jmgasper/turbo_chook/releases/tag/latest)).
+
+| Architecture | Package |
+|---|---|
+| arm64 | [turbochook-0.1.2.alpha-1-arm64.hpkg](https://github.com/jmgasper/turbo_chook/releases/download/latest/turbochook-0.1.2.alpha-1-arm64.hpkg) |
+| x86_64 | [turbochook-0.1.2.alpha-1-x86_64.hpkg](https://github.com/jmgasper/turbo_chook/releases/download/latest/turbochook-0.1.2.alpha-1-x86_64.hpkg) |
+
+Install with `pkgman install <file>`, or copy the file into `/boot/system/packages`. Haiku SDK: x86_64 hrev60206-669-g9dc439ceeb, arm64 hrev60206-669-g9dc439ceeb.
+<!-- airos-ci:latest-builds:end -->
+
 ## Features
 
 - **Working copy**: unstaged, staged and conflicted files with status badges;
